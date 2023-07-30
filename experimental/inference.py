@@ -23,7 +23,7 @@ if __name__ == "__main__":
         "do_sample":True,
         "max_new_tokens":512
     }
-    batch_size = 2
+    batch_size = 1
     dataset = dataset.map(lambda example: infer(prompt, example, **generation_args),
                 batch_size = batch_size)
     
