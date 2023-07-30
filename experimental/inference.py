@@ -7,8 +7,8 @@ pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3")
 
 def infer(prompt, examples, **kwargs):
     
-        questions, contexts = examples["question"], examples["context"]
-        inputs = ["\n".join(prompt,question,context) for question,context in zip(questions,contexts)]
+        question, context = examples["question"], examples["context"]
+        inputs = "\n".join([prompt,question,context])
         outputs = pipe(inputs, **kwargs)    
     
         return {"answer_vinuca":outputs}
