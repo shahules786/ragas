@@ -24,7 +24,12 @@ if __name__ == "__main__":
         "max_new_tokens":512
     }
     batch_size = 1
-    dataset = dataset.map(lambda example: infer(prompt, example, **generation_args),
-                batch_size = batch_size)
-    
+    # dataset = dataset.map(lambda example: infer(prompt, example, **generation_args),
+    #             batch_size = batch_size)
+    outputs = []
+    for item in dataset["train"]:
+        output = infer(prompt, item, **generation_args)
+        outputs.append(output)
+        
+    dataset = dataset.add_column("answer_v2", outputs)
     dataset.to_json("ragas_hawk.json")
