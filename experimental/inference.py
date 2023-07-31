@@ -5,7 +5,7 @@ from tqdm import tqdm
 import torch
 
 pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0",
-                torch_dtype = torch.float16)
+                torch_dtype = torch.float16, do_sample=True)
 
 def infer(prompt, examples, **kwargs):
     
@@ -13,7 +13,7 @@ def infer(prompt, examples, **kwargs):
         inputs = "\n".join([prompt,question,context])
         outputs = pipe(inputs, **kwargs)    
     
-        return {"answer_vinuca":outputs}
+        return outputs["generated_text"][len(inputs):]
 
     
  
