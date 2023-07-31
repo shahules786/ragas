@@ -1,9 +1,10 @@
 # Use a pipeline as a high-level helper
 from transformers import pipeline
 from datasets import load_dataset
+from tqdm import tqdm
 
 
-pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3")
+pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0")
 
 def infer(prompt, examples, **kwargs):
     
@@ -27,9 +28,9 @@ if __name__ == "__main__":
     # dataset = dataset.map(lambda example: infer(prompt, example, **generation_args),
     #             batch_size = batch_size)
     outputs = []
-    for item in dataset["train"]:
+    for item in tqdm(dataset["train"]):
         output = infer(prompt, item, **generation_args)
         outputs.append(output)
         
-    dataset = dataset.add_column("answer_v2", outputs)
+    dataset = dataset["train"].add_column("answer_v2", outputs)
     dataset.to_json("ragas_hawk.json")
