@@ -13,7 +13,7 @@ def infer(prompt, examples, **kwargs):
         inputs = "\n".join([prompt,question,context])
         outputs = pipe(inputs, **kwargs)    
     
-        return outputs[0]["generated_text"][len(inputs):]
+        return outputs[0]["generated_text"]
 
     
  
