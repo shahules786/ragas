@@ -23,7 +23,6 @@ if __name__ == "__main__":
     dataset = load_dataset("explodinggradients/wiki-eval")
     generation_args = {
         "do_sample":True,
-        "max_new_tokens":512
     }
     batch_size = 1
     # dataset = dataset.map(lambda example: infer(prompt, example, **generation_args),
