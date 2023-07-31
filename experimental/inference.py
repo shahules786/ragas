@@ -2,9 +2,10 @@
 from transformers import pipeline
 from datasets import load_dataset
 from tqdm import tqdm
+import torch
 
-
-pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0")
+pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0",
+                torch_dtype = torch.float16)
 
 def infer(prompt, examples, **kwargs):
     
