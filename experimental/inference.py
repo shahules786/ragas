@@ -5,13 +5,13 @@ from tqdm import tqdm
 import torch
 
 pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0",
-                torch_dtype = torch.float16, do_sample=True)
+                torch_dtype = torch.float16)
 
 def infer(prompt, examples, **kwargs):
     
         question, context = examples["question"], examples["context"]
-        inputs = "\n".join([prompt,question,context])
-        outputs = pipe(inputs, **kwargs)    
+        # inputs = "\n".join([prompt,question,context])
+        outputs = pipe(question, **kwargs)    
     
         return outputs[0]["generated_text"]
 
