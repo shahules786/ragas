@@ -33,5 +33,5 @@ if __name__ == "__main__":
         output = infer(prompt, item, **generation_args)
         outputs.append(output)
         
-    dataset = dataset["train"].add_column("answer_v2", outputs)
+    dataset = dataset["train"].add_column("answer_vinuca_grounded", outputs)
     dataset.to_json("ragas_hawk.json")
