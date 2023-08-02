@@ -10,8 +10,8 @@ pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0"
 def infer(prompt, examples, **kwargs):
     
         question, context = examples["question"], examples["context"]
-        # inputs = "\n".join([prompt,question,context])
-        outputs = pipe(question+"\nASSISTANT:", **kwargs)    
+        inputs = "\n".join([prompt,question,context[:4000]])
+        outputs = pipe(inputs+"\nASSISTANT:", **kwargs)    
     
         return outputs[0]["generated_text"]
 
@@ -19,7 +19,7 @@ def infer(prompt, examples, **kwargs):
  
 if __name__ == "__main__":
     
-    prompt =  "USER: Answer the following question using the given question"
+    prompt =  "USER: Answer the following question using the given context"
     dataset = load_dataset("explodinggradients/wiki-eval")
     generation_args = {
         "do_sample":True,
