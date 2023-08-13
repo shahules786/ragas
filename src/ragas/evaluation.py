@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 
 import numpy as np
 from datasets import Dataset, concatenate_datasets
@@ -9,21 +8,7 @@ from datasets import Dataset, concatenate_datasets
 from ragas._analytics import EvaluationEvent, track
 from ragas.metrics.base import Metric
 from ragas.metrics.critique import AspectCritique
-
-EvaluationMode = Enum("EvaluationMode", "generative retrieval grounded")
-
-
-def get_evaluation_mode(ds: Dataset):
-    """
-    validates the dataset and returns the evaluation type
-
-    possible evaluation types
-    1. (q,a,c)
-    2. (q,a)
-    3. (q,c)
-    4. (g,a)
-    """
-    ...
+from ragas.validation import validate_column_dtypes, validate_evaluation_modes
 
 
 def evaluate(
@@ -44,10 +29,16 @@ def evaluate(
 
     Returns
     -------
-    result : Result
+    Result
         Result object containing the scores of each metric. You can use this do analysis
         later. If the top 3 metrics are provided then it also returns the `ragas_score`
         for the entire pipeline.
+
+    Raises
+    ------
+    ValueError
+        if validation fails because the columns required for the metrics are missing or
+        if the columns are of the wrong format.
 
     Examples
     --------
@@ -63,22 +54,21 @@ def evaluate(
 
     >>> result = evaluate(dataset)
     >>> print(result["ragas_score"])
-    {'ragas_score': 0.860, 'context_relavency': 0.817, 'faithfulness': 0.892,
+    {'ragas_score': 0.860, 'context_relevancy': 0.817, 'faithfulness': 0.892,
     'answer_relevancy': 0.874}
     ```
     """
     if dataset is None:
         raise ValueError("Provide dataset!")
 
-    # TODO: validate EvaluationMode here
-    # evaluation_mode = get_evaluation_mode(dataset)
-
-    # TODO: check if all the metrics are compatible with the evaluation mode
-
     if metrics is None:
         from ragas.metrics import answer_relevancy, context_relevancy, faithfulness
 
         metrics = [answer_relevancy, context_relevancy, faithfulness]
+
+    # validation
+    validate_evaluation_modes(dataset, metrics)
+    validate_column_dtypes(dataset)
 
     # run the evaluation on dataset with different metrics
     # initialize all the models in the metrics
@@ -127,7 +117,12 @@ class Result(dict):
 
         # harmonic mean of all the scores we have
         if len(values) > 1:
+<<<<<<< HEAD
             self["ragas_score"] = len(values) / np.sum(1.0 / np.array(values))
+=======
+            reciprocal_sum = np.sum(1.0 / np.array(values))  # type: ignore
+            self["ragas_score"] = len(values) / reciprocal_sum
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 
     def to_pandas(self, batch_size: int | None = None, batched: bool = False):
         if self.dataset is None:

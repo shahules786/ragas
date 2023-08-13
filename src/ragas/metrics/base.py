@@ -9,6 +9,10 @@ from __future__ import annotations
 import typing as t
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+<<<<<<< HEAD
+=======
+from enum import Enum
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 from math import floor
 
 from datasets import Dataset
@@ -32,6 +36,9 @@ def make_batches(total_size: int, batch_size: int) -> list[range]:
     return batches
 
 
+EvaluationMode = Enum("EvaluationMode", "qac qa qc ga")
+
+
 @dataclass
 class Metric(ABC):
     batch_size: int
@@ -39,6 +46,11 @@ class Metric(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
+        ...
+
+    @property
+    @abstractmethod
+    def evaluation_mode(self) -> EvaluationMode:
         ...
 
     @abstractmethod

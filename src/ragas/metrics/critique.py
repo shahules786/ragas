@@ -5,12 +5,20 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from datasets import Dataset
+<<<<<<< HEAD
+=======
+from langchain.callbacks.manager import CallbackManager, trace_as_chain_group
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 from langchain.chat_models.base import BaseChatModel
 from langchain.llms.base import BaseLLM
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from tqdm import tqdm
 
+<<<<<<< HEAD
 from ragas.metrics.base import MetricWithLLM, _llm_factory
+=======
+from ragas.metrics.base import EvaluationMode, MetricWithLLM, _llm_factory
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 from ragas.metrics.llms import generate
 
 CRITIQUE_PROMPT = HumanMessagePromptTemplate.from_template(
@@ -53,6 +61,10 @@ class AspectCritique(MetricWithLLM):
     """
 
     name: str = field(default="", repr=True)
+<<<<<<< HEAD
+=======
+    evaluation_mode: EvaluationMode = EvaluationMode.qac
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
     definition: str = field(default="", repr=True)
     strictness: int = field(default=1, repr=False)
     batch_size: int = field(default=15, repr=False)
@@ -65,12 +77,21 @@ class AspectCritique(MetricWithLLM):
         assert self.name != "", "Expects a name"
         assert self.definition != "", "Expects definition"
 
+<<<<<<< HEAD
     def init_model(self: t.Self):
+=======
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
         # ensure odd number of checks to avoid tie in majority vote.
         self.strictness = (
             self.strictness if self.strictness % 2 == 0 else self.strictness + 1
         )
 
+<<<<<<< HEAD
+=======
+    def init_model(self: t.Self):
+        pass
+
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
     def prompt_format(
         self: t.Self,
         question: str,
@@ -89,6 +110,23 @@ class AspectCritique(MetricWithLLM):
         if self.llm is None:
             raise ValueError("llm must not be None")
 
+<<<<<<< HEAD
+=======
+        with trace_as_chain_group(f"ragas_{self.name}") as score_group:
+            scores = []
+            for batch in tqdm(self.get_batches(len(dataset))):
+                score = self._score_batch(dataset.select(batch), callbacks=score_group)
+                scores.extend(score)
+
+        return dataset.add_column(self.name, scores)  # type: ignore
+
+    def _score_batch(
+        self: t.Self,
+        dataset: Dataset,
+        callbacks: t.Optional[CallbackManager],
+        callback_group_name: str = "batch",
+    ) -> list[int]:
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
         questions, contexts, answers = [
             dataset[key] if key in dataset.features else None
             for key in ("question", "context", "answer")
@@ -99,6 +137,7 @@ class AspectCritique(MetricWithLLM):
             contexts = [None] * len(questions)
 
         prompts = []
+<<<<<<< HEAD
         for question, context, answer in zip(questions, contexts, answers):
             human_prompt = self.prompt_format(question, answer, context)
             prompts.append(ChatPromptTemplate.from_messages([human_prompt]))
@@ -127,6 +166,39 @@ class AspectCritique(MetricWithLLM):
             scores.append(score)
 
         return dataset.add_column(f"{self.name}", scores)  # type: ignore
+=======
+        with trace_as_chain_group(
+            callback_group_name, callback_manager=callbacks
+        ) as batch_group:
+            for question, context, answer in zip(questions, contexts, answers):
+                human_prompt = self.prompt_format(question, answer, context)
+                prompts.append(ChatPromptTemplate.from_messages([human_prompt]))
+
+            results = generate(
+                prompts,
+                self.llm,
+                n=self.strictness,
+                callbacks=batch_group,
+            )
+            responses: list[list[str]] = [
+                [i.text for i in r] for r in results.generations
+            ]
+
+            scores = []
+            answer_dict = {"Yes": 1, "No": 0}
+            for response in responses:
+                response = [(text, text.split("\n\n")[-1]) for text in response]
+                if self.strictness > 1:
+                    score = Counter(
+                        [answer_dict.get(item[-1], 0) for item in response]
+                    ).most_common(1)[0][0]
+                else:
+                    score = answer_dict.get(response[0][-1])
+
+                scores.append(score)
+
+        return scores
+>>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 
 
 harmfulness = AspectCritique(

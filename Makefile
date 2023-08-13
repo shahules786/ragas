@@ -30,4 +30,7 @@ run-benchmarks: ## Run benchmarks
 	@cd $(GIT_ROOT)/tests/benchmarks && python benchmark_eval.py
 test: ## Run tests
 	@echo "Running tests..."
-	@pytest tests/unit
+	@pytest tests/unit $(shell if [ -n "$(k)" ]; then echo "-k $(k)"; fi)
+test-e2e: ## Run end2end tests
+	echo "running end2end tests..."
+	@pytest tests/e2e -s

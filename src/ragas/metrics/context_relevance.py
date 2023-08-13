@@ -7,11 +7,12 @@ from typing import List
 
 import numpy as np
 from datasets import Dataset
+from langchain.callbacks.manager import CallbackManager, trace_as_chain_group
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from sentence_transformers import CrossEncoder
 from tqdm import tqdm
 
-from ragas.metrics.base import MetricWithLLM
+from ragas.metrics.base import EvaluationMode, MetricWithLLM
 from ragas.metrics.llms import generate
 
 CONTEXT_RELEVANCE = HumanMessagePromptTemplate.from_template(
@@ -26,8 +27,11 @@ sentences:His mass–energy equivalence formula E = mc2, which arises from relat
 
 question: Were Scott Derrickson and Ed Wood of the same nationality?
 context :\nScott Derrickson (born July 16, 1966) is an American director, screenwriter and producer He lives in Los Angeles, California He is best known for directing horror films such as "Sinister", "The Exorcism of Emily Rose", and "Deliver Us From Evil", as well as the 2016 Marvel Cinematic Universe installment, "Doctor Strange"Tyler Bates is an American musician, music producer, and composer for films, television, and video games. Adam Collis is an American filmmaker and actor.Conrad Brooks is an American actor.Edward Davis Wood Jr. (October 10, 1924 – December 10, 1978) was an American filmmaker, actor, writer, producer, and director.
-Now given a question and context, extract the minimum number of sentences from the given context required to answer the question completely. 
 sentences:Scott Derrickson (born July 16, 1966) is an American director, screenwriter and producer. Edward Davis Wood Jr. (October 10, 1924 – December 10, 1978) was an American filmmaker, actor, writer, producer, and director.
+
+question: How many were killed in the Tiananmen Square incident?
+context:\nTiananmen Square incident, also called June Fourth incident or 6/4, series of protests and demonstrations in China in the spring of 1989 that culminated on the night of June 3–4 with a government crackdown on the demonstrators in Tiananmen Square in Beijing.
+sentences: No candidate sentences found.
 
 question:{question}
 context:\n{context}
@@ -104,7 +108,8 @@ class ContextRelevancy(MetricWithLLM):
         any encoder model. Used for calculating bert_score.
     """
 
-    name: str = "context_relavency"
+    name: str = "context_ relevancy"
+    evaluation_mode: EvaluationMode = EvaluationMode.qc
     batch_size: int = 15
     strictness: int = 2
     agreement_metric: str = "bert_score"
@@ -115,6 +120,7 @@ class ContextRelevancy(MetricWithLLM):
             raise ValueError(
                 "model_name must be provided when agreement_metric is bert_score"
             )
+        self.temperature = 0.2 if self.strictness > 0 else 0
 
     def init_model(self: t.Self):
         self.sent_agreement = SentenceAgreement(
@@ -134,39 +140,57 @@ class ContextRelevancy(MetricWithLLM):
         """
         if self.llm is None:
             raise ValueError("llm must not be None")
-        prompts = []
-        questions, contexts = dataset["question"], dataset["contexts"]
-        for q, c in zip(questions, contexts):
-            human_prompt = CONTEXT_RELEVANCE.format(question=q, context="\n".join(c))
-            prompts.append(ChatPromptTemplate.from_messages([human_prompt]))
-
-        responses: list[list[str]] = []
-        for batch_idx in tqdm(range(0, len(prompts), 20)):
-            results = generate(
-                prompts[batch_idx : batch_idx + 20], self.llm, n=self.strictness
-            )
-            batch_responses = [[i.text for i in r] for r in results.generations]
-            responses.extend(batch_responses)  # type: ignore
 
         scores = []
-        for context, n_response in zip(contexts, responses):
-            context = "\n".join(context)
-            overlap_scores = []
-            context_sents = sent_tokenize(context)
-            for output in n_response:
-                indices = [
-                    context.find(sent)
-                    for sent in sent_tokenize(output)
-                    if context.find(sent) != -1
-                ]
-                overlap_scores.append(len(indices) / len(context_sents))
-            if self.strictness > 1:
-                agr_score = self.sent_agreement.evaluate(n_response)
-            else:
-                agr_score = 1
-            scores.append(agr_score * np.mean(overlap_scores))
+        with trace_as_chain_group(f"ragas_{self.name}") as score_group:
+            for batch in tqdm(self.get_batches(len(dataset))):
+                score = self._score_batch(dataset.select(batch), callbacks=score_group)
+                scores.extend(score)
 
-        return dataset.add_column(f"{self.name}", scores)  # type: ignore
+        return dataset.add_column(self.name, scores)  # type: ignore
+
+    def _score_batch(
+        self: t.Self,
+        dataset: Dataset,
+        callbacks: t.Optional[CallbackManager] = None,
+        callback_group_name: str = "batch",
+    ) -> list[float]:
+        prompts = []
+        questions, contexts = dataset["question"], dataset["contexts"]
+        with trace_as_chain_group(
+            callback_group_name, callback_manager=callbacks
+        ) as batch_group:
+            for q, c in zip(questions, contexts):
+                human_prompt = CONTEXT_RELEVANCE.format(
+                    question=q, context="\n".join(c)
+                )
+                prompts.append(ChatPromptTemplate.from_messages([human_prompt]))
+
+            responses: list[list[str]] = []
+            results = generate(
+                prompts,
+                self.llm,
+                n=self.strictness,
+                temperature=self.temperature,
+                callbacks=batch_group,
+            )
+            responses = [[i.text for i in r] for r in results.generations]
+
+            scores = []
+            for context, n_response in zip(contexts, responses):
+                context = "\n".join(context)
+                overlap_scores = []
+                context_sents = sent_tokenize(context)
+                for output in n_response:
+                    indices = sent_tokenize(output)
+                    overlap_scores.append(len(indices) / len(context_sents))
+                if self.strictness > 1:
+                    agr_score = self.sent_agreement.evaluate(n_response)
+                else:
+                    agr_score = 1
+                scores.append(agr_score * np.mean(overlap_scores))
+
+        return scores
 
 
 context_relevancy = ContextRelevancy()
