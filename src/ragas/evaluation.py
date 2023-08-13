@@ -117,12 +117,8 @@ class Result(dict):
 
         # harmonic mean of all the scores we have
         if len(values) > 1:
-<<<<<<< HEAD
-            self["ragas_score"] = len(values) / np.sum(1.0 / np.array(values))
-=======
             reciprocal_sum = np.sum(1.0 / np.array(values))  # type: ignore
             self["ragas_score"] = len(values) / reciprocal_sum
->>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 
     def to_pandas(self, batch_size: int | None = None, batched: bool = False):
         if self.dataset is None:
