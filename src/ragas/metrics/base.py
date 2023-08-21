@@ -9,10 +9,7 @@ from __future__ import annotations
 import typing as t
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-<<<<<<< HEAD
-=======
 from enum import Enum
->>>>>>> a877b0c7e3a8acc2abddfc4dc109cb035a749801
 from math import floor
 
 from datasets import Dataset
