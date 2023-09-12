@@ -8,7 +8,6 @@ from datasets import Dataset
 from langchain.chat_models.base import BaseChatModel
 from langchain.llms.base import BaseLLM
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
-from tqdm import tqdm
 
 from ragas.metrics.base import MetricWithLLM, _llm_factory
 from ragas.metrics.base import EvaluationMode, MetricWithLLM
@@ -87,10 +86,12 @@ class AspectCritique(MetricWithLLM):
             input=question, submission=answer, criteria=self.definition
         )
 
-    def score(self: t.Self, dataset: Dataset) -> Dataset:
-        if self.llm is None:
-            raise ValueError("llm must not be None")
-
+    def _score_batch(
+        self: t.Self,
+        dataset: Dataset,
+        callbacks: t.Optional[CallbackManager] = None,
+        callback_group_name: str = "batch",
+    ) -> list[int]:
         questions, contexts, answers = [
             dataset[key] if key in dataset.features else None
             for key in ("question", "context", "answer")
