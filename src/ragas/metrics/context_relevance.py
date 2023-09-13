@@ -23,9 +23,13 @@ context:\n{context}
 candidate sentences:\n"""  # noqa: E501
 )
 
+import pysbd
+
+seg = pysbd.Segmenter(language="en", clean=False)
+
 
 def sent_tokenize(sent: str) -> List[str]:
-    return [s[:-1] if s.endswith(".") else s for s in sent.strip().split(". ")]
+    return seg.segment(sent)
 
 
 class SentenceAgreement:

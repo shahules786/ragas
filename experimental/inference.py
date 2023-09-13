@@ -1,8 +1,8 @@
 # Use a pipeline as a high-level helper
-from transformers import pipeline
+import torch
 from datasets import load_dataset
 from tqdm import tqdm
-import torch
+from transformers import pipeline
 
 pipe = pipeline("text-generation", model="lmsys/vicuna-7b-v1.3", device="cuda:0",
                 torch_dtype = torch.float16)

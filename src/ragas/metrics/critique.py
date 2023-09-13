@@ -9,8 +9,7 @@ from langchain.chat_models.base import BaseChatModel
 from langchain.llms.base import BaseLLM
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
-from ragas.metrics.base import MetricWithLLM, _llm_factory
-from ragas.metrics.base import EvaluationMode, MetricWithLLM
+from ragas.metrics.base import EvaluationMode, MetricWithLLM, _llm_factory
 from ragas.metrics.llms import generate
 
 CRITIQUE_PROMPT = HumanMessagePromptTemplate.from_template(
