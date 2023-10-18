@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import typing as t
 from dataclasses import dataclass
 from itertools import combinations, product
 from typing import List
 
 import numpy as np
+import pysbd
 from datasets import Dataset
 from langchain.callbacks.manager import CallbackManager, trace_as_chain_group
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
@@ -14,9 +16,9 @@ from sentence_transformers import CrossEncoder
 from ragas.metrics.base import EvaluationMode, MetricWithLLM
 from ragas.metrics.llms import generate
 
-CONTEXT_RELEVANCE = HumanMessagePromptTemplate.from_template(
+CONTEXT_PRECISION = HumanMessagePromptTemplate.from_template(
     """\
-Please extract relevant sentences from the provided context that can potentially help answer the following question. If no relevant sentences are found, or if you believe the question cannot be answered from the given context, return the phrase "Insufficient Information".  While extracting candidate sentences you're not allowed to make any changes to sentences from given context.
+Please extract relevant sentences from the provided context that is absolutely required to answer the following question. If no relevant sentences are found, or if you believe the question cannot be answered from the given context, return the phrase "Insufficient Information".  While extracting candidate sentences you're not allowed to make any changes to sentences from given context.
 
 question:{question}
 context:\n{context}
@@ -28,8 +30,16 @@ import pysbd
 seg = pysbd.Segmenter(language="en", clean=False)
 
 
-def sent_tokenize(sent: str) -> List[str]:
-    return seg.segment(sent)
+seg = pysbd.Segmenter(language="en", clean=False)
+
+
+def sent_tokenize(text: str) -> List[str]:
+    """
+    tokenizer text into sentences
+    """
+    sentences = seg.segment(text)
+    assert isinstance(sentences, list)
+    return sentences
 
 
 class SentenceAgreement:
@@ -77,7 +87,7 @@ class SentenceAgreement:
 
 
 @dataclass
-class ContextRelevancy(MetricWithLLM):
+class ContextPrecision(MetricWithLLM):
     """
     Extracts sentences from the context that are relevant to the question with
     self-consistancy checks. The number of relevant sentences and is used as the score.
@@ -89,7 +99,7 @@ class ContextRelevancy(MetricWithLLM):
         Batch size for openai completion.
     strictness : int
         Controls the number of times sentence extraction is performed to quantify
-        uncertainty from the LLM. Defaults to 2.
+        uncertainty from the LLM. Defaults to 1.
     agreement_metric : str
         "bert_score" or "jaccard_score", used to measure agreement between multiple
         samples.
@@ -97,12 +107,13 @@ class ContextRelevancy(MetricWithLLM):
         any encoder model. Used for calculating bert_score.
     """
 
-    name: str = "context_relevancy"
+    name: str = "context_precision"
     evaluation_mode: EvaluationMode = EvaluationMode.qc
     batch_size: int = 15
-    strictness: int = 2
+    strictness: int = 1
     agreement_metric: str = "bert_score"
     model_name: str = "cross-encoder/stsb-TinyBERT-L-4"
+    show_deprecation_warning: bool = False
 
     def __post_init__(self: t.Self):
         if self.agreement_metric == "bert_score" and self.model_name is None:
@@ -122,13 +133,17 @@ class ContextRelevancy(MetricWithLLM):
         callbacks: t.Optional[CallbackManager] = None,
         callback_group_name: str = "batch",
     ) -> list[float]:
+        if self.show_deprecation_warning:
+            logging.warning(
+                "The 'context_relevancy' metric is going to be deprecated soon! Please use the 'context_precision' metric instead. It is a drop-in replacement just a simple search and replace should work."  # noqa
+            )
         prompts = []
         questions, contexts = dataset["question"], dataset["contexts"]
         with trace_as_chain_group(
             callback_group_name, callback_manager=callbacks
         ) as batch_group:
             for q, c in zip(questions, contexts):
-                human_prompt = CONTEXT_RELEVANCE.format(
+                human_prompt = CONTEXT_PRECISION.format(
                     question=q, context="\n".join(c)
                 )
                 prompts.append(ChatPromptTemplate.from_messages([human_prompt]))
@@ -145,16 +160,19 @@ class ContextRelevancy(MetricWithLLM):
 
             scores = []
             for context, n_response in zip(contexts, responses):
-                context = "\n".join(context)
+                context = "\n".join(context).strip()
                 overlap_scores = []
                 context_sents = sent_tokenize(context)
                 for output in n_response:
                     indices = (
-                        output.split("\n")
+                        sent_tokenize(output.strip())
                         if output.lower() != "insufficient information."
                         else []
                     )
-                    score = min(len(indices) / len(context_sents), 1)
+                    if len(context_sents) == 0:
+                        score = 0
+                    else:
+                        score = min(len(indices) / len(context_sents), 1)
                     overlap_scores.append(score)
                 if self.strictness > 1:
                     agr_score = self.sent_agreement.evaluate(n_response)
@@ -165,4 +183,11 @@ class ContextRelevancy(MetricWithLLM):
         return scores
 
 
+@dataclass
+class ContextRelevancy(ContextPrecision):
+    name: str = "context_relevancy"
+    show_deprecation_warning: bool = True
+
+
+context_precision = ContextPrecision()
 context_relevancy = ContextRelevancy()
