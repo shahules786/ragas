@@ -2,9 +2,13 @@
 
 The evaluation metric, Answer Relevancy, focuses on assessing how pertinent the generated answer is to the given prompt. A lower score is assigned to answers that are incomplete or contain redundant information. This metric is computed using the `question` and the `answer`, with values ranging between 0 and 1, where higher scores indicate better relevancy.
 
+
+
 An answer is deemed relevant when it directly and appropriately addresses the original question. Importantly, our assessment of answer relevance does not consider factuality but instead penalizes cases where the answer lacks completeness or contains redundant details. To calculate this score, the LLM is prompted to generate an appropriate question for the generated answer multiple times, and the mean cosine similarity between these generated questions and the original question is measured. The underlying idea is that if the generated answer accurately addresses the initial question, the LLM should be able to generate questions from the answer that align with the original question.
 
-```{hint}
+:::{note}
+This is reference free metric. If you're looking to compare ground truth answer with generated answer refer to [answer_correctness](./answer_correctness.md)
+:::
 
 Question: Where is France and what is it's capital?
 
