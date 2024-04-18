@@ -51,14 +51,14 @@ class BaseRagasLLM(ABC):
 
     def get_temperature(self, n: int) -> float:
         """Return the temperature to use for completion based on n."""
-        return 0.3 if n > 1 else 1e-8
+        return 0.5 if n > 1 else 0.0
 
     @abstractmethod
     def generate_text(
         self,
         prompt: PromptValue,
         n: int = 1,
-        temperature: float = 1e-8,
+        temperature: float = 0.0,
         stop: t.Optional[t.List[str]] = None,
         callbacks: Callbacks = None,
     ) -> LLMResult:
@@ -69,7 +69,7 @@ class BaseRagasLLM(ABC):
         self,
         prompt: PromptValue,
         n: int = 1,
-        temperature: float = 1e-8,
+        temperature: float = 0.0,
         stop: t.Optional[t.List[str]] = None,
         callbacks: Callbacks = None,
     ) -> LLMResult:
@@ -130,7 +130,7 @@ class LangchainLLMWrapper(BaseRagasLLM):
         self,
         prompt: PromptValue,
         n: int = 1,
-        temperature: float = 1e-8,
+        temperature: float = 0.0,
         stop: t.Optional[t.List[str]] = None,
         callbacks: Callbacks = None,
     ) -> LLMResult:
@@ -160,7 +160,7 @@ class LangchainLLMWrapper(BaseRagasLLM):
         self,
         prompt: PromptValue,
         n: int = 1,
-        temperature: float = 1e-8,
+        temperature: float = 0.0,
         stop: t.Optional[t.List[str]] = None,
         callbacks: Callbacks = None,
     ) -> LLMResult:
