@@ -156,3 +156,26 @@ class MetricWithEmbeddings(Metric):
                 f"Metric '{self.name}' has no valid embeddings provided (self.embeddings is None). Please initantiate a the metric with an embeddings to run."  # noqa
             )
         self.embeddings.set_run_config(run_config)
+
+
+
+INFERENCE_LEVELS = """
+Also add inference levels to each results. 
+Inference Levels Explained
+
+Direct Inference (Level 1):
+Definition: Immediate conclusions drawn directly from text with no extra information needed.
+Example: "The car is red" directly infers "The object is colored."
+
+Contextual Inference (Level 2):
+Definition: Conclusions based on context or common knowledge that logically extends from the text.
+Example: "She visited the dentist" might infer "She cares about her dental health," assuming typical reasons for dental visits.
+
+Analytical Inference (Level 3):
+Definition: Conclusions drawn from synthesizing various parts of the text or analyzing underlying patterns.
+Example: "He often works late and is tired" could lead to "He is stressed from work," considering common effects of overwork.
+
+Speculative Inference (Level 4):
+Definition: Educated guesses made from the information given, filling in gaps with plausible but unsupported scenarios.
+Example: "She frequently travels to warm climates" might speculate "She prefers warm weather."
+"""

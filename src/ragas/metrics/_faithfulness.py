@@ -4,12 +4,15 @@ import json
 import logging
 import typing as t
 from dataclasses import dataclass, field
+from functools import partial
 
 import numpy as np
 from langchain_core.pydantic_v1 import BaseModel, Field
 
+from ragas.llms.ensembler import ensembler
 from ragas.llms.output_parser import RagasoutputParser, get_json_format_instructions
 from ragas.llms.prompt import Prompt
+from ragas.metrics.base import INFERENCE_LEVELS
 from ragas.metrics.base import EvaluationMode, MetricWithLLM
 
 if t.TYPE_CHECKING:
@@ -43,9 +46,7 @@ LONG_FORM_ANSWER_PROMPT = Prompt(
                 [
                     "Albert Einstein, a German-born theoretical physicist, is renowned for being one of the most influential physicists in history.",
                     "Albert Einstein was best known for his theory of relativity.",
-                    "Einstein's contributions significantly advanced the field of quantum mechanics",
-                    "Recognized globally, Einstein's work has profoundly impacted the scientific community",
-                    "Einstein's groundbreaking theories continue to shape our understanding of physics today.",
+                    "Einstein's contributions significantly advanced the field of quantum mechanics.",
                 ]
             ).dicts(),
         },
@@ -72,6 +73,7 @@ class StatementFaithfulnessAnswer(BaseModel):
     statement: str = Field(..., description="the original statement, word-by-word")
     verdict: int = Field(..., description="the verdict(0/1) of the faithfulness.")
     reason: str = Field(..., description="the reason of the verdict")
+    inference_level: int = Field(..., description="the level of inference")
 
 
 class StatementFaithfulnessAnswers(BaseModel):
@@ -90,7 +92,7 @@ _faithfulness_output_parser = RagasoutputParser(
 
 NLI_STATEMENTS_MESSAGE = Prompt(
     name="nli_statements",
-    instruction="Your task is to judge the faithfulness of a series of statements based on a given context. For each statement you must return verdict as 1 if the statement can be verified based on the context or 0 if the statement can not be verified based on the context.",
+    instruction="Your task is to judge the faithfulness of a series of statements based on a given context. For each statement you must return verdict as 1 if the statement can be directly inferred based on the context or 0 if the statement can not be directly inferred based on the context.",
     output_format_instruction=_faithfulness_output_instructions,
     examples=[
         {
@@ -105,23 +107,27 @@ NLI_STATEMENTS_MESSAGE = Prompt(
                 [
                     {
                         "statement": "John is majoring in Biology.",
-                        "reason": "John's major is explicitly mentioned as Computer Science. There is no information suggesting he is majoring in Biology.",
                         "verdict": 0,
+                        "reason": "John's major is explicitly mentioned as Computer Science. There is no information suggesting he is majoring in Biology.",
+                        "inference_level": 1,
                     },
                     {
                         "statement": "John is taking a course on Artificial Intelligence.",
-                        "reason": "The context mentions the courses John is currently enrolled in, and Artificial Intelligence is not mentioned. Therefore, it cannot be deduced that John is taking a course on AI.",
                         "verdict": 0,
+                        "reason": "The context mentions the courses John is currently enrolled in, and Artificial Intelligence is not mentioned. Therefore, it cannot be deduced that John is taking a course on AI.",
+                        "inference_level": 1,
                     },
                     {
                         "statement": "John is a dedicated student.",
-                        "reason": "The context states that he spends a significant amount of time studying and completing assignments. Additionally, it mentions that he often stays late in the library to work on his projects, which implies dedication.",
                         "verdict": 1,
+                        "reason": "The context states that he spends a significant amount of time studying and completing assignments. Additionally, it mentions that he often stays late in the library to work on his projects, which implies dedication.",
+                        "inference_level": 2,
                     },
                     {
                         "statement": "John has a part-time job.",
-                        "reason": "There is no information given in the context about John having a part-time job.",
                         "verdict": 0,
+                        "reason": "There is no information given in the context about John having a part-time job.",
+                        "inference_level": 1,
                     },
                 ]
             ).dicts(),
@@ -133,9 +139,10 @@ NLI_STATEMENTS_MESSAGE = Prompt(
                 [
                     {
                         "statement": "Albert Einstein was a genius.",
-                        "reason": "The context and statement are unrelated",
                         "verdict": 0,
-                    },
+                        "reason": "The context and statement are unrelated",
+                        "inference_level": 1,
+                    }
                 ]
             ).dicts(),
         },
@@ -145,6 +152,8 @@ NLI_STATEMENTS_MESSAGE = Prompt(
     output_type="json",
 )  # noqa: E501
 
+
+NLI_STATEMENTS_MESSAGE.instruction += INFERENCE_LEVELS
 
 @dataclass
 class Faithfulness(MetricWithLLM):
@@ -157,6 +166,7 @@ class Faithfulness(MetricWithLLM):
         default_factory=lambda: NLI_STATEMENTS_MESSAGE
     )
     max_retries: int = 1
+    reproducibility: int = 0
 
     def _create_answer_prompt(self, row: t.Dict) -> PromptValue:
         question, answer = row["question"], row["answer"]
@@ -202,28 +212,74 @@ class Faithfulness(MetricWithLLM):
         assert self.llm is not None, "LLM is not set"
         p_value = self._create_answer_prompt(row)
         answer_result = await self.llm.generate(
-            p_value, callbacks=callbacks, is_async=is_async
+            p_value, callbacks=callbacks, is_async=is_async, n=self.reproducibility
         )
-        answer_result_text = answer_result.generations[0][0].text
-        statements = await _statements_output_parser.aparse(
-            answer_result_text, p_value, self.llm, self.max_retries
-        )
-        if statements is None:
-            return np.nan
+        if self.reproducibility > 1:
+            answer_result_text = [
+                answer_result.generations[0][i].text
+                for i in range(self.reproducibility)
+            ]
+            statements = [
+                await _statements_output_parser.aparse(
+                    text, p_value, self.llm, self.max_retries
+                )
+                for text in answer_result_text
+            ]
+            statements = [
+                statement.dicts() for statement in statements if statement is not None
+            ]
+            statements = await ensembler.from_list_of_strings(statements)
+        else:
+            answer_result_text = answer_result.generations[0][0].text
+            statements = await _statements_output_parser.aparse(
+                answer_result_text, p_value, self.llm, self.max_retries
+            )
+            if statements is None:
+                return np.nan
+            else:
+                statements = statements.dicts()
 
-        p_value = self._create_nli_prompt(row, statements.__root__)
+        p_value = self._create_nli_prompt(row, statements)
         nli_result = await self.llm.generate(
-            p_value, callbacks=callbacks, is_async=is_async
+            # The `p_value` in the provided code snippet is a variable that is being used to store the
+            # prompt value for generating statements from a given answer. It is used in the
+            # `_create_answer_prompt` method to format the question and answer into a prompt value for
+            # the long form answer prompt.
+            p_value,
+            callbacks=callbacks,
+            is_async=is_async,
+            n=self.reproducibility,
         )
-        nli_result_text = nli_result.generations[0][0].text
 
-        faithfulness = await _faithfulness_output_parser.aparse(
-            nli_result_text, p_value, self.llm, self.max_retries
-        )
-        if faithfulness is None:
-            return np.nan
+        if self.reproducibility > 1:
+            nli_result_text = [
+                nli_result.generations[0][i].text for i in range(self.reproducibility)
+            ]
+            faithfulness_list = [
+                await _faithfulness_output_parser.aparse(
+                    text, p_value, self.llm, self.max_retries
+                )
+                for text in nli_result_text
+            ]
+            faithfulness_list = [
+                faith.dicts() for faith in faithfulness_list if faith is not None
+            ]
+            # partial_p_value = partial(self._create_nli_prompt, row)
+            faithfulness_list = ensembler.from_discrete(
+                faithfulness_list, "verdict",
+            )
+            faithfulness_list = StatementFaithfulnessAnswers.parse_obj(
+                faithfulness_list
+            )
+        else:
+            nli_result_text = nli_result.generations[0][0].text
+            faithfulness_list = await _faithfulness_output_parser.aparse(
+                nli_result_text, p_value, self.llm, self.max_retries
+            )
+            if faithfulness_list is None:
+                return np.nan
 
-        return self._compute_score(faithfulness)
+        return self._compute_score(faithfulness_list)
 
     def adapt(self, language: str, cache_dir: t.Optional[str] = None) -> None:
         assert self.llm is not None, "LLM is not set"
