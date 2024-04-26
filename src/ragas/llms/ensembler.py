@@ -1,3 +1,4 @@
+from email.policy import strict
 import json
 import os
 import typing as t
@@ -211,6 +212,27 @@ class Ensemble:
         return verdict_agg
     
     def from_discrete(self, inputs: list[list[t.Dict]], attribute: str):
+        if not all(
+            len(item) == len(inputs[0]) for item in inputs
+        ):
+            print(inputs)
+            return []
+                
+        assert all(
+            attribute in item for input in inputs for item in input
+        ), "attribute not found in all items"
+        
+        verdict_agg = []
+        for i in range(len(inputs[0])):
+            item = inputs[0][i]
+            verdicts = [inputs[k][i][attribute] for k in range(len(inputs))]
+            verdict_counts = dict(Counter(verdicts).most_common())
+            item[attribute] = list(verdict_counts.keys())[0]
+            verdict_agg.append(item)
+            
+        return verdict_agg
+    
+    def from_discrete_with_inference_levels(self, inputs: list[list[t.Dict]], attribute: str):
         assert all(
             len(item) == len(inputs[0]) for item in inputs
         ), "all items should have the same length"
@@ -222,36 +244,98 @@ class Ensemble:
         for i in range(len(inputs[0])):
             item = inputs[0][i]
             verdicts = [inputs[k][i][attribute] for k in range(len(inputs))]
-            verdict_counts = dict(Counter(verdicts).most_common())
             verdict_levels = [f"{inputs[k][i][attribute]}-{inputs[k][i]['inference_level']}" for k in range(len(inputs))]
-            # verdict_levels = dict(Counter(verdict_levels).most_common())
-            # first_val = next(iter(verdict_levels.values()))
-            # if first_val == len(verdict_levels):
-            #     #clear winner
-            #     item[attribute] = list(verdict_levels.keys())[0].split("-")[0]
-            # else:
-                
-                
-            print(verdict_levels)
-            print(verdict_counts)
-            print()
-            votes = list(verdict_counts.values())[0]
-            if votes > len(verdicts)//2:
+            print("verdicts", verdicts)
+            print("verdict_levels", verdict_levels)
+            verdict_counts = dict(Counter(verdicts).most_common())
+            first_val = next(iter(verdict_counts.values()))            
+            if first_val == len(verdicts):
                 item[attribute] = list(verdict_counts.keys())[0]
             else:
-                # no clear winner - go with verdict from strictest level
-                level_dict = {}
-                for level in range(1,5):
-                    verdict_level = [inputs[k][i][attribute] for k in range(len(inputs)) if inputs[k][i]["inference_level"] == level]
-                    if verdict_level:
-                        level_dict[level] = verdict_level
-                verdict_level = dict(sorted(level_dict.items(), key=lambda x: x[0], reverse=False))
-                print(verdict_level)
-                item[attribute] = list(verdict_level.values())[0][0]
+                verdict_levels = [f"{inputs[k][i][attribute]}-{inputs[k][i]['inference_level']}" for k in range(len(inputs))]
+                verdict_level_count = dict(Counter(verdict_levels).most_common())
+                first_val = next(iter(verdict_level_count.values()))
+                # if all inferece says same verdict then go with that (even with different levels of inference)
+                
+                if first_val > len(verdicts)//2:
+                    # clear winner
+                    item[attribute] = list(verdict_level_count.keys())[0].split("-")[0]
+                else:
+                    print(verdict_level_count)
+                    # analyse levels of inference
+                    from collections import defaultdict
+                    # analyze verdicts from different levels of inference
+                    verdict_to_levels = defaultdict(set)
+                    for k in range(len(inputs)):
+                        verdict_to_levels[verdict_levels[k].split('-')[0]].add(verdict_levels[k].split('-')[1])
+                    # check for conflicting levels
+                    # verdict_to_levels = sorted(verdict_to_levels.items(), key=lambda x: x[0])
+                    inference_levels = [list(item) for item in verdict_to_levels.values()]
+                    inference_levels = [list(map(int, item)) for item in inference_levels]
+                    print("iunference levels", inference_levels)
+                    conflicting_level = np.intersect1d(*inference_levels)
+                    if conflicting_level:
+                        # {1: {'1'}, 0: {'1','2'}}
+                        # if conflicting levels, go with the verdict from the liberal level
+                        remining_levels = []
+                        for levels in inference_levels:
+                            levels = [level for level in levels if level not in conflicting_level]
+                            remining_levels.extend(levels)
+                            
+                        print(remining_levels)
+                        smoothest_level = max(remining_levels)
+                        print(smoothest_level)
+                        item[attribute] = [inputs[k][i][attribute] for k in range(len(inputs)) if inputs[k][i]['inference_level'] == smoothest_level][0]
+                    else:
+                        # no conflicting levels
+                        # {1: {'1','0'}, 0: {'2'}}
+                        # go with the verdict from the strictest level
+                        strictest_level = min(sum(inference_levels, []))
+                        item[attribute] = [inputs[k][i][attribute] for k in range(len(inputs)) if inputs[k][i]['inference_level'] == strictest_level][0]
+                    
+                
+            # print(verdict_levels)
+            # print(verdict_counts)
+            # print()
+            # votes = list(verdict_counts.values())[0]
+            # if votes > len(verdicts)//2:
+            #     item[attribute] = list(verdict_counts.keys())[0]
+            # else:
+            #     # no clear winner - go with verdict from strictest level
+            #     level_dict = {}
+            #     for level in range(1,5):
+            #         verdict_level = [inputs[k][i][attribute] for k in range(len(inputs)) if inputs[k][i]["inference_level"] == level]
+            #         if verdict_level:
+            #             level_dict[level] = verdict_level
+            #     verdict_level = dict(sorted(level_dict.items(), key=lambda x: x[0], reverse=False))
+            #     print(verdict_level)
+            #     item[attribute] = list(verdict_level.values())[0][0]
                 
             verdict_agg.append(item)
                     
         return verdict_agg
+    
+    # def from_discrete(self, inputs: list[list[t.Dict]], attribute: str):
+    #     assert all(
+    #             len(item) == len(inputs[0]) for item in inputs
+    #         ), "all items should have the same length"
+    #     assert all(
+    #             attribute in item for input in inputs for item in input
+    #         ), "attribute not found in all items"
+        
+    #     verdict_agg = []
+    #     for i in range(len(inputs[0])):
+    #         item = inputs[0][i]
+    #         verdicts = [inputs[k][i][attribute] for k in range(len(inputs))]
+    #         verdict_counts = dict(Counter(verdicts).most_common())
+    #         first_val = next(iter(verdict_counts.values()))            
+    #         if first_val > len(verdicts)//2:
+    #             item[attribute] = list(verdict_counts.keys())[0]
+    #         else:
+    #             pass
+                
+                
+            
         
 ensembler = Ensemble()
 
