@@ -242,3 +242,4 @@ class Faithfulness(MetricWithLLM):
 
 
 faithfulness = Faithfulness()
+new_commit = None
