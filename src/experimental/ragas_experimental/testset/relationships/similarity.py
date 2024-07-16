@@ -8,7 +8,7 @@ from ragas_experimental.testset.relationships.base import Similarity
 
 
 @dataclass
-class Jaccard(Similarity):
+class JaccardSimilarity(Similarity):
     type: t.Optional[str] = None
     threshold: t.Optional[int] = 80
 
@@ -56,7 +56,7 @@ class Jaccard(Similarity):
 
 
 @dataclass
-class Cosine(Similarity):
+class CosineSimilarity(Similarity):
     def extract(self, x_nodes: t.List[Node], y_nodes: t.List[Node]) -> t.Any:
         embeddings_1 = [self.get_attribute(doc, self.attribute1) for doc in x_nodes]
         embeddings_2 = [self.get_attribute(doc, self.attribute2) for doc in y_nodes]
@@ -65,4 +65,4 @@ class Cosine(Similarity):
         cosine_similarity_matrix = np.dot(embeddings_1, embeddings_2.T) / (
             np.linalg.norm(embeddings_1, axis=1) * np.linalg.norm(embeddings_2, axis=1)
         )
-        return cosine_similarity_matrix
+        return 1-cosine_similarity_matrix
