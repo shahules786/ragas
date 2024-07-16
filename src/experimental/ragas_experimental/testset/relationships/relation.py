@@ -13,7 +13,6 @@ class RelationshipBuilder:
     @staticmethod
     def form_relations(
         nodes: t.List[Node],
-        relationships: t.List[Relationship],
         similarity_functions: t.List[Similarity],
         node_level: NodeLevel,
         kwargs: t.Optional[t.Dict[str, t.Any]] = None,
@@ -31,7 +30,7 @@ class RelationshipBuilder:
             }}
                 """.format(node_level=node_level.name)
         results = schema.execute(
-            query, context={"nodes": nodes, "relationships": relationships}
+            query, context={"nodes": nodes}
         )
 
         # check if there is any data returned from the query
@@ -46,14 +45,13 @@ class RelationshipBuilder:
 
         if not results.data.get("filterNodes"):
             logger.warning("No new relations created due to empty results.")
-            return (nodes, relationships)
+            return (nodes)
 
         node_ids = [item.get("id") for item in results.data["filterNodes"]]
         nodes_ = [node for node in nodes if node.id in node_ids]
         for extractor in similarity_functions:
             similarity_matrix = extractor.extract(nodes_, nodes_)
             for i, row in enumerate(similarity_matrix):
-                new_relationships = []
                 for j, score in enumerate(row):
                     if i != j and score >= score_threshold:
                         relationship = Relationship(
@@ -62,10 +60,7 @@ class RelationshipBuilder:
                             label=extractor.name,
                             properties={"score": score},
                         )
-                        new_relationships.append(relationship)
                         relationship.source.relationships.append(relationship)
                         relationship.target.relationships.append(relationship)
 
-                relationships.extend(new_relationships)
-
-        return (nodes, relationships)
+        return nodes
