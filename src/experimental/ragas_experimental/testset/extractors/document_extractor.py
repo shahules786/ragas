@@ -73,14 +73,14 @@ class DocumentExtractor:
         attributes: t.List[str],
         args: t.Dict[str, t.List[NodeLevel]] = {},
     ) -> t.Sequence[Node | LCDocument]:
-        exec = Executor(
-            desc="Embeddding..",
-            keep_progress_bar=True,
-            raise_exceptions=True,
-            run_config=None,
-        )
-
+        
         for attr in attributes:
+            exec = Executor(
+                desc=f"Embeddding for attribute {attr}",
+                keep_progress_bar=True,
+                raise_exceptions=True,
+                run_config=None,
+            )
             if all(isinstance(item, Node) for item in inputs):
                 for item in inputs:
                     exec.submit(
@@ -92,7 +92,8 @@ class DocumentExtractor:
             else:
                 raise ValueError("Input must be a list of Nodes or Documents")
 
-        return exec.results()
+            inputs = exec.results()
+        return inputs
 
     async def _extract_from_document(self, doc: LCDocument) -> LCDocument:
         for extractor in self._extractors:

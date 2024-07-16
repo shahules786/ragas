@@ -1,5 +1,6 @@
 import typing as t
 import uuid
+from langchain_core.documents import Document
 
 from graphene import (
     Argument,
@@ -77,6 +78,12 @@ class Node(ObjectType):
 
     def __init__(self, id=None, **kwargs):
         super().__init__(id=id or str(uuid.uuid4()), **kwargs)
+        
+    def to_document(self):
+        return Document(
+            page_content=self.properties.get("page_content", ""),
+            metadata=self.properties.get("metadata", {}),
+        )
 
     def resolve_relationships(
         self,
