@@ -5,6 +5,7 @@ from ragas_experimental.testset.extractors.llm_based import (
     keyphrase_extractor,
     summary_extractor,
     title_extractor,
+    title_generator,
 )
 from ragas_experimental.testset.extractors.regex_based import (
     RulebasedExtractor,
@@ -24,4 +25,5 @@ __all__ = [
     "email_extractor",
     "link_extractor",
     "markdown_headings",
+    "title_generator",
 ]

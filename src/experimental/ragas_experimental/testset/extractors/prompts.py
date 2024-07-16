@@ -85,3 +85,18 @@ title_extractor_prompt = Prompt(
     output_type="str",
     language="english",
 )
+
+title_generator_prompt = Prompt(
+    name="section_title_generator",
+    instruction="Generate a title for the given text.",
+    examples=[
+        {
+            "text": "Email is not a messaging protocol but a poorly designed to-do list. It needs to be replaced with a protocol that better suits the purpose of task management.",
+            "title": "Replacing Email with a Task Management Protocol",
+        },
+    ],
+    input_keys=["text"],
+    output_key="title",
+    output_type="str",
+    language="english",
+)

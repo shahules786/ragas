@@ -14,6 +14,7 @@ from ragas_experimental.testset.extractors.prompts import (
     keyphrase_extractor_prompt,
     summary_extactor_prompt,
     title_extractor_prompt,
+    title_generator_prompt,
 )
 from ragas_experimental.testset.graph import Node
 from ragas_experimental.testset.utils import MODEL_MAX_LENGTHS, merge_dicts
@@ -131,7 +132,7 @@ class LLMbasedExtractor(Extractor):
                     if extractor.prompt
                 ]
             )
-
+            prompt_name = "merged_extractor" if len(extractors) > 1 else extractors[0].prompt.name
             examples = []
             extractor_prompt1 = extractors[0].prompt if extractors[0].prompt else None
             if extractor_prompt1 is not None:
@@ -150,7 +151,7 @@ class LLMbasedExtractor(Extractor):
                     examples.append(example)
 
                 prompt = Prompt(
-                    name="merged_extractor",
+                    name=prompt_name,
                     instruction=instruction,
                     examples=examples,
                     input_keys=extractor_prompt1.input_keys,
@@ -168,3 +169,4 @@ summary_extractor = LLMbasedExtractor(prompt=summary_extactor_prompt)
 headline_extractor = LLMbasedExtractor(prompt=headline_extractor_prompt)
 keyphrase_extractor = LLMbasedExtractor(prompt=keyphrase_extractor_prompt)
 title_extractor = LLMbasedExtractor(prompt=title_extractor_prompt)
+title_generator = LLMbasedExtractor(prompt=title_generator_prompt)
