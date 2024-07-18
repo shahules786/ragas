@@ -1,5 +1,6 @@
 import re
 import typing as t
+import json
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -87,6 +88,68 @@ class RulebasedExtractor(Extractor):
         return extractors_to_return
 
 
+class MarkdownHeadingExtractor(Extractor):
+   
+    async def aextract_text(self, text):
+        raise NotImplementedError(
+            "aextract() is not implemented for RulebasedExtractor"
+        )
+        
+    def extract_text(self, text) -> t.Dict[str, t.Any]:
+        
+        text = json.loads(text)
+        # Regular expressions to capture headings and subheadings
+        heading_pattern = r"##\s+(.+)"
+        subheading_pattern = r"###\s+(.+)"
+
+        output = defaultdict(list)
+        current_heading = None
+
+        # Process the text line by line
+        for line in text.split('\n'):
+            heading_match = re.match(heading_pattern, line)
+            subheading_match = re.match(subheading_pattern, line)
+            
+            if heading_match:
+                current_heading = heading_match.group(1).strip()
+            elif subheading_match and current_heading:
+                subheading = subheading_match.group(1).strip()
+                output[current_heading].append(subheading)
+        
+        output = dict(output)
+        return {"headings": output}
+    
+    def extract(self, node: t.Union[Node, LCDocument]) -> t.Any:
+        return super().extract(node)
+    
+    
+    
+class MarkdownLinkExtractor(Extractor):
+   
+    async def aextract_text(self, text):
+        raise NotImplementedError(
+            "aextract() is not implemented for RulebasedExtractor"
+        )
+        
+    def extract_text(self, text) -> t.Dict[str, t.Any]:
+        
+        text = json.loads(text)
+        pattern = r'\[([^\[\]]+)\]\(((?!http[s]?:\/\/|{{<?\s*ref)[^)]+)\)'
+        local_links_regex = re.compile(pattern)
+        matches = local_links_regex.findall(text)
+
+        results = {}
+        for match in matches:
+            link_text, link_url = match
+            results[link_text] = link_url
+        
+        return {"local_links": results}
+        
+    def extract(self, node: t.Union[Node, LCDocument]) -> t.Any:
+        return super().extract(node)
+    
+   
+   
 links_extractor_pattern = r"(?i)\b(?:https?://|www\.)\S+\b"
 emails_extractor_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 markdown_headings = r"^(#{1,6})\s+(.*)"
