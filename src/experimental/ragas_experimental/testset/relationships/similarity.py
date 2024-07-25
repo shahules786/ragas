@@ -1,6 +1,7 @@
 import typing as t
 from dataclasses import dataclass
 
+import os
 import numpy as np
 
 from ragas_experimental.testset.graph import Node
@@ -66,3 +67,28 @@ class CosineSimilarity(Similarity):
             np.linalg.norm(embeddings_1, axis=1) * np.linalg.norm(embeddings_2, axis=1)
         )
         return 1-cosine_similarity_matrix
+
+
+class FilePathLinker:
+    
+    def extract(self, x_nodes: t.List[Node],  y_nodes: t.List[Node]):
+    
+        # assume that all links are preprocessed and validated. 
+        for node in x_nodes:
+            local_file_paths = node.properties["metadata"].get("local_links", {})
+            for key, path in local_file_paths.items():
+                basename = os.path.basename(path)
+                if basename.startswith("#"):
+                    file_path, section = os.path.dirname(path), basename.replace("#", "")
+                else:
+                    file_path, section = path, None
+                   
+                if os.path.exists(file_path):
+                    related_nodes = [y_node for y_node in y_nodes if y_node.properties["metadata"].get("source") == file_path]
+                    if section:
+                        section = section.replace('-', ' ').lower()
+                        related_nodes = [y_node for y_node in related_nodes if section.lower() in [title.lower() for title in y_node.properties["metadata"].get("markdown_headlines", [])]]
+                        
+                    for related_node in related_nodes:
+                        node.add_relationship(related_node, "file_link", {"path": path, "section": section, "text": key})            
+        return x_nodes

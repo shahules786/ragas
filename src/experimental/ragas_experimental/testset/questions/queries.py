@@ -49,3 +49,21 @@ CHILD_NODES_QUERY = """
         }}
         }}
         """
+
+
+GET_ALL_CHILD_NODES = """{{
+    filterNodes(level: {level}) {{
+        id
+        label
+        properties
+        relationships {{
+            label
+            properties
+            target {{
+                id
+                label
+                properties
+            }}
+        }}
+    }}
+}}"""

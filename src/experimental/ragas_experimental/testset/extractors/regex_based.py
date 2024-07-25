@@ -1,4 +1,5 @@
 import re
+from turtle import clear
 import typing as t
 import json
 from collections import defaultdict
@@ -25,6 +26,7 @@ class RulebasedExtractor(Extractor):
         )
 
     def extract_text(self, text):
+        text = json.loads(text)
         matches = (
             re.finditer(self.pattern, text, re.MULTILINE)
             if self.is_multiline
@@ -71,13 +73,28 @@ class RulebasedExtractor(Extractor):
                     added_indices.append(extractors.index(ext))
 
         extractors_to_return = []
-        for extractors in final_extractors:
+        for group_index, extractors in enumerate(final_extractors):
             if len(extractors) > 1:
-                pattern = "|".join([extractor.pattern for extractor in extractors])
-                updated_regex = Regex(name="merged_extractor", pattern=pattern)
+                # Process each pattern individually
+                processed_patterns = []
+                for extractor in extractors:
+                    pattern = extractor.pattern
+                    # Extract flags from the beginning of the pattern
+                    flags = ""
+                    if pattern.startswith("(?"):
+                        flag_end = pattern.index(")")
+                        flags = pattern[2:flag_end]
+                        pattern = pattern[flag_end + 1:]
+                    # Wrap the pattern in a non-capturing group with flags
+                    processed_patterns.append(f"(?{flags}:{pattern})")
+
+                # Join all processed patterns
+                merged_pattern = "|".join(processed_patterns)
+
+                updated_regex = Regex(name="merged_extractor", pattern=merged_pattern)
             else:
-                pattern = extractors[0].pattern
                 updated_regex = extractors[0].regex
+
             extractors_to_return.append(
                 RulebasedExtractor(
                     attribute=extractors[0].attribute,
@@ -148,18 +165,33 @@ class MarkdownLinkExtractor(Extractor):
     def extract(self, node: t.Union[Node, LCDocument]) -> t.Any:
         return super().extract(node)
     
+    
+class MarkdownHeadingsFlatExtractor(Extractor):
+    
+    def extract_text(self, text: str):
+        text = json.loads(text)
+        
+        markdown_headings = r"^(#{1,6})\s+(.*)"
+        matches = re.findall(markdown_headings, text, re.MULTILINE)
+        cleaned_headings = [match[1].strip() for match in matches]
+        
+        return {"markdown_headlines": cleaned_headings}
+    
+    def extract(self, node: t.Union[Node, LCDocument]) -> t.Any:
+        return super().extract(node)
+        
+    async def aextract_text(self, text):
+        raise NotImplementedError(
+            "aextract() is not implemented for RulebasedExtractor"
+        )
    
    
 links_extractor_pattern = r"(?i)\b(?:https?://|www\.)\S+\b"
 emails_extractor_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
-markdown_headings = r"^(#{1,6})\s+(.*)"
 
 email_extractor = RulebasedExtractor(
     regex=Regex(name="email", pattern=emails_extractor_pattern)
 )
 link_extractor = RulebasedExtractor(
     regex=Regex(name="link", pattern=links_extractor_pattern)
-)
-markdown_headings = RulebasedExtractor(
-    regex=Regex(name="markdown_headings", pattern=markdown_headings), is_multiline=True
 )

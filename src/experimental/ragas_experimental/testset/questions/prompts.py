@@ -92,32 +92,6 @@ common_topic_from_keyphrases = Prompt(
 )
 
 
-# comparative_question = Prompt(
-#     name="comparative_question",
-#     instruction="Generate a comparative question based on the given themes that can be answered by comparing the information in the provided contexts.",
-#     examples=[
-#         {
-#             "themes": [
-#                 "AI enhances efficiency and accuracy in various industries",
-#                 "AI-powered tools improve decision-making and outcomes"
-#             ],
-#             "contexts": [
-#                 """
-#                 Context 1: Advances in artificial intelligence have revolutionized many industries. From healthcare to finance, AI algorithms are making processes more efficient and accurate. Machine learning models are being used to predict diseases, optimize investment strategies, and even recommend personalized content to users. The integration of AI into daily operations is becoming increasingly indispensable for modern businesses.
-#                 """,
-#                 """
-#                 Context 2: The healthcare industry is witnessing a significant transformation due to AI advancements. AI-powered diagnostic tools are improving the accuracy of medical diagnoses, reducing human error, and enabling early detection of diseases. Additionally, AI is streamlining administrative tasks, allowing healthcare professionals to focus more on patient care. Personalized treatment plans driven by AI analytics are enhancing patient outcomes.
-#                 """
-#             ],
-#             "question": "How do AI-powered tools improve decision-making and outcomes compared to enhancing efficiency and accuracy in various industries?",
-#         }
-#     ],
-#     input_keys=["themes", "contexts"],
-#     output_key="question",
-#     output_type="str",
-#     language="english",
-# )
-
 abstract_comparative_question = Prompt(
     name="create_comparative_question",
     instruction="Generate an abstract comparative question based on the given concept, keyphrases belonging to that concept, and summaries of reports.",
@@ -150,13 +124,13 @@ abstract_question_from_theme = Prompt(
     name="abstract_question_generation",
     instruction="Generate an abstract conceptual question using the given theme that can be answered from the information in the provided context.",
     examples=[
-        {
-            "theme": "AI enhances efficiency and accuracy in various industries.",
-            "context": """
-            AI is transforming various industries by improving efficiency and accuracy. For instance, in manufacturing, AI-powered robots automate repetitive tasks with high precision, reducing errors and increasing productivity. In healthcare, AI algorithms analyze medical images and patient data to provide accurate diagnoses and personalized treatment plans. Financial services leverage AI for fraud detection and risk management, ensuring quicker and more reliable decision-making. Overall, AI's ability to process vast amounts of data and learn from it enables industries to optimize operations, reduce costs, and deliver better outcomes.
-            """,
-            "question": "How does AI improve efficiency and accuracy across different industries?",
-        }
+        # {
+        #     "theme": "AI enhances efficiency and accuracy in various industries.",
+        #     "context": """
+        #     AI is transforming various industries by improving efficiency and accuracy. For instance, in manufacturing, AI-powered robots automate repetitive tasks with high precision, reducing errors and increasing productivity. In healthcare, AI algorithms analyze medical images and patient data to provide accurate diagnoses and personalized treatment plans. Financial services leverage AI for fraud detection and risk management, ensuring quicker and more reliable decision-making. Overall, AI's ability to process vast amounts of data and learn from it enables industries to optimize operations, reduce costs, and deliver better outcomes.
+        #     """,
+        #     "question": "How does AI improve efficiency and accuracy across different industries?",
+        # }
     ],
     input_keys=["theme", "context"],
     output_key="question",
@@ -329,11 +303,13 @@ order_sections_by_relevance = order_sections_by_relevance = Prompt(
 
 specific_question_from_keyphrase = Prompt(
     name="specific_question_from_keyphrase",
-    instruction="Given the title of a text and a text chunk, along with a keyphrase from the chunk, generate a specific question related to the keyphrase.\n\n"
-    "1. Read the title and the text chunk.\n"
-    "2. Identify the context of the keyphrase within the text chunk.\n"
-    "3. Formulate a question that directly relates to the keyphrase and its context within the chunk.\n"
-    "4. Ensure the question is clear, specific, and relevant to the keyphrase.",
+    instruction="""
+    Given the title of a text and a content from the text, along with a keyphrase, generate a specific question using the given keyphrase that can be fully answered from given context.
+    1. Read the title and the text
+    2. Identify the context of the keyphrase within the text.
+    3. Formulate a question that directly relates to the keyphrase and its context
+    4. Ensure the question is clear, specific, and relevant to the keyphrase.
+    """,
     examples=[
         {
             "title": "The Impact of Artificial Intelligence on Modern Healthcare",
@@ -345,4 +321,25 @@ specific_question_from_keyphrase = Prompt(
     input_keys=["title", "keyphrase", "text"],
     output_key="question",
     output_type="str",
+)
+
+
+extract_key_points_from_summary = Prompt(
+    name="extract_key_points_from_summary",
+    instruction="Identify the key points or main ideas from the given summary text.",
+    examples=[
+        {
+            "summary": "The book explores the history of artificial intelligence, tracing its development from early theoretical concepts to modern applications in various fields. It highlights significant breakthroughs, key figures in the field, and ethical considerations surrounding AI. The author also discusses future prospects and potential impacts of AI on society.",
+            "num": 3,
+            "key_points": [
+                "History and development of artificial intelligence.",
+                "Significant breakthroughs and key figures in AI.",
+                "Ethical considerations and future prospects of AI."
+            ]
+        }
+    ],
+    input_keys=["summary", "num"],
+    output_key="key_points",
+    output_type="json",
+    language="english",
 )

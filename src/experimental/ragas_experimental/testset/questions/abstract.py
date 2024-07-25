@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import typing as t
@@ -7,7 +8,7 @@ import numpy as np
 import tiktoken
 from langchain.utils.math import cosine_similarity
 from langchain_core.documents import Document as LCDocument
-from ragas_experimental.testset.graph import Node
+from ragas_experimental.testset.graph import Node, NodeLevel
 from ragas_experimental.testset.questions.base import (
     QAC,
     QAGenerator,
@@ -21,6 +22,7 @@ from ragas_experimental.testset.questions.prompts import (
     common_topic_from_keyphrases,
     critic_question,
     question_answering,
+    extract_key_points_from_summary
 )
 from ragas_experimental.testset.questions.queries import (
     CLUSTER_OF_RELATED_NODES_QUERY,
@@ -556,3 +558,315 @@ class ComparativeAbstractQA(AbstractQuestions):
             )
 
         return output_documents
+
+
+
+@dataclass
+class QAfromSummary(QAGenerator):
+    
+    name: str = "QAfromSummary"
+    generate_question_prompt: Prompt = field(default_factory=lambda: abstract_question_from_theme)
+    generate_answer_prompt: Prompt = field(default_factory=lambda: question_answering)
+    critic_question_prompt: Prompt = field(default_factory=lambda: critic_question)
+    extract_key_points_prompt: Prompt = field(default_factory=lambda: extract_key_points_from_summary)
+    
+    async def generate_questions(self, query, kwargs, num_samples=5):
+        
+       
+        assert self.llm is not None, "LLM is not initialized"
+        # provide generic function to query nodes given level
+        nodes = [node for node in self.nodes if node.level == NodeLevel.LEVEL_0]
+        
+        if num_samples >= len(nodes):
+            num_questions_per_node = num_samples // len(nodes)
+            reminder = num_samples % len(nodes)
+            num_questions_per_node = [num_questions_per_node] * len(nodes)
+            num_questions_per_node[-1] += reminder
+            
+        else:
+            num_questions_per_node = [1] * num_samples
+            reminder = 0
+            nodes = rng.choice(np.array(nodes), num_samples, replace=False)
+        
+        
+        node_seed = []
+        for num_seeds, node in zip(num_questions_per_node, nodes):
+            
+            p_value = self.extract_key_points_prompt.format(summary=node.properties["metadata"]["summary"], num=num_seeds)
+            key_points = await self.llm.generate(p_value)
+            key_points = await json_loader.safe_load(key_points.generations[0][0].text, llm=self.llm)
+            node_seed.extend([([node], key_point) for key_point in key_points])
+            
+        exec = Executor(
+            desc="Generating",
+            keep_progress_bar=True,
+            raise_exceptions=True,
+            run_config=None,
+        )
+        
+        index = 0
+        for dist, prob in self.distribution.items():
+            style, length = dist
+            for i in range(int(prob * num_samples)):
+                exec.submit(
+                    self.generate_question,
+                    node_seed[index][0],
+                    style,
+                    length,
+                    {"key_point": node_seed[index][1]},
+                )
+                index += 1
+
+        remaining_size = num_samples - index
+        if remaining_size != 0:
+            choices = np.array(self.distribution.keys())
+            prob = np.array(self.distribution.values())
+            random_distribution = rng.choice(choices, p=prob, size=remaining_size)
+            for dist in random_distribution:
+                style, length = dist
+                exec.submit(
+                    self.generate_question,
+                    node_seed[index][0],
+                    style,
+                    length,
+                    {"key_point": node_seed[index][1]},
+                )
+                index += 1
+
+        return exec.results()
+    
+    
+    async def generate_question(self, nodes, style: QuestionStyle, length: QuestionLength, kwargs: dict | None = None) -> QAC | None:
+        
+        key_point = kwargs.get("key_point", "")
+     
+        try:
+            kwargs = {
+                "max_tokens": 4024,
+                "key_point": key_point,
+            }
+            source = await self.retrieve_chunks(nodes, kwargs)
+            if source:
+                question = await self.llm.generate(
+                    self.generate_question_prompt.format(
+                        theme=key_point,
+                        context="\n\n".join([chunk.page_content for chunk in source]),
+                    )
+                )
+                question = question.generations[0][0].text
+                critic = await self.critic_question(question)
+                if critic:
+                    question = await self.modify_question(question, style, length)
+                    answer = await self.generate_answer(question, source)
+                    return QAC(
+                        question=question,
+                        answer=answer,
+                        source=source,
+                        name=self.name,
+                        style=style,
+                        length=length,
+                    )
+                else:
+                    logger.warning("question failed critic %s", question)
+                    return QAC()
+            else:
+                logger.warning("source was not detected %s", selected_theme)
+                return QAC()
+        except Exception as e:
+            logger.error("Error while generating question: %s", e)
+            raise e
+
+    async def retrieve_chunks(self, nodes: t.List[Node], kwargs: dict | None = None) -> t.List[LCDocument] | None:
+        
+        assert self.embedding is not None
+        
+        nodes = nodes[0]
+        
+        documents = []
+        documents.append(LCDocument(
+            page_content=nodes.properties["metadata"]["title"] + "\n\n" + nodes.properties["metadata"]["summary"],
+            metadata={"source": "summary"}
+        ))
+        
+        # replace with query to get child nodes
+        child_nodes = [rel.target for rel in nodes.relationships if rel.label == "child" and nodes.id == rel.source.id]
+        if child_nodes is None:
+            return None
+        
+        key_point = kwargs.get("key_point", "")
+        max_tokens = kwargs.get("max_tokens", 2000)
+        key_point_embedding = await self.embedding.embed_text(key_point)
+        
+        child_node_embeddings = [node.properties["metadata"]["page_content_embedding"] for node in child_nodes]
+        similarity_matrix = cosine_similarity([key_point_embedding], child_node_embeddings)
+        most_similar = np.flip(np.argsort(similarity_matrix[0]))
+        ranked_child_nodes = [child_nodes[i] for i in most_similar]
+        
+        
+        model_name = "gpt-3.5-turbo-"
+        enc = tiktoken.encoding_for_model(model_name)
+        ranked_chunks_length = [
+            len(enc.encode(node.properties["page_content"]))
+            for node in ranked_child_nodes
+        ]
+        ranked_chunks_length = np.cumsum(ranked_chunks_length)
+        index = np.argmax(np.argwhere(np.cumsum(ranked_chunks_length) < max_tokens)) + 1
+        top_child_nodes = ranked_child_nodes[:index]
+           
+        for node in top_child_nodes:
+            documents.append(LCDocument(
+                page_content=node.properties["page_content"],
+                metadata={"source": node.properties["metadata"]["source"]}
+            ))
+            
+        return documents
+    
+    async def critic_question(self, question: str) -> bool:
+        assert self.llm is not None, "LLM is not initialized"
+
+        output = await self.llm.generate(critic_question.format(question=question))
+        output = json.loads(output.generations[0][0].text)
+        return all(score >= 2 for score in output.values())
+    
+    async def generate_answer(self, question: str, chunks: t.List[LCDocument]) -> str:
+        
+        text = "\n\n".join([chunk.page_content for chunk in chunks])
+        output = await self.llm.generate(
+            self.generate_answer_prompt.format(question=question, text=text)
+        )
+        return output.generations[0][0].text
+    
+    
+@dataclass
+class QAfromLinkedDocs(QAGenerator):
+    
+    async def generate_questions(self, query, kwargs, num_samples=5):
+        
+        
+        def get_required_nodes(nodes):
+            node_clusters_to_return = []
+            nodes = [node for node in nodes if any(rel.label == "file_link" and node.id == rel.source.id for rel in node.relationships)]
+            for node in nodes:
+                related_nodes = [rel.target for rel in node.relationships if rel.label == "file_link" and node.id == rel.source.id]
+                # one way relationship
+                related_nodes = [(node, related_node) for related_node in related_nodes]
+                node_clusters_to_return.append(related_nodes)
+            return node_clusters_to_return
+        
+        assert self.llm is not None, "LLM is not initialized"
+        node_clusters = get_required_nodes(self.nodes)
+        
+        if num_samples >= len(node_clusters):
+            num_questions_per_node = num_samples // len(node_clusters)
+            reminder = num_samples % len(node_clusters)
+            num_questions_per_node = [num_questions_per_node] * len(node_clusters)
+            num_questions_per_node[-1] += reminder
+        else:
+            num_questions_per_node = [1] * num_samples
+            reminder = 0
+            node_clusters = rng.choice(np.array(node_clusters), num_samples, replace=False)
+            
+        node_seed = []
+        for num_seeds, (node, related_node) in zip(num_questions_per_node, node_clusters):
+            
+            keyphrases = np.array(node.properties["metadata"]["keyphrases"] + related_node.properties["metadata"]["keyphrases"])
+            for _ in range(num_seeds):
+                keyphrase = rng.choice(keyphrases, 1)[0]
+                node_seed.append(([node, related_node], keyphrase))
+                
+        exec = Executor(
+            desc="Generating",
+            keep_progress_bar=True,
+            raise_exceptions=True,
+            run_config=None,
+        )
+        
+        index = 0
+        for dist, prob in self.distribution.items():
+            style, length = dist
+            for i in range(int(prob * num_samples)):
+                exec.submit(
+                    self.generate_question,
+                    node_seed[index][0],
+                    style,
+                    length,
+                    {"keyphrase": node_seed[index][1]},
+                )
+                index += 1
+        remaining_size = num_samples - index
+        if remaining_size != 0:
+            choices = np.array(self.distribution.keys())
+            prob = np.array(self.distribution.values())
+            random_distribution = rng.choice(choices, p=prob, size=remaining_size)
+            for dist in random_distribution:
+                style, length = dist
+                exec.submit(
+                    self.generate_question,
+                    node_seed[index][0],
+                    style,
+                    length,
+                    {"keyphrase": node_seed[index][1]},
+                )
+                index += 1
+        return exec.results()
+    
+    async def generate_question(self, nodes, style: QuestionStyle, length: QuestionLength, kwargs: dict | None = None) -> dataclasses.Any:
+        
+        keyphrase = kwargs.get("keyphrase", "")
+        try:
+            source = await self.retrieve_chunks(nodes, {"max_tokens": 4024, "keyphrase": keyphrase})
+            if source:
+                question = await self.llm.generate(
+                    self.generate_question_prompt.format(
+                        keyphrase=keyphrase,
+                        context="\n\n".join([chunk.page_content for chunk in source]),
+                    )
+                )
+                question = question.generations[0][0].text
+                critic = await self.critic_question(question)
+                if critic:
+                    question = await self.modify_question(question, style, length)
+                    answer = await self.generate_answer(question, source)
+                    return QAC(
+                        question=question,
+                        answer=answer,
+                        source=source,
+                        name=self.name,
+                        style=style,
+                        length=length,
+                    )
+                else:
+                    logger.warning("question failed critic %s", question)
+                    return QAC()
+            else:
+                logger.warning("source was not detected %s", keyphrase)
+                return QAC()
+        except Exception as e:
+            logger.error("Error while generating question: %s", e)
+            raise e
+        
+    async def critic_question(self, question: str) -> bool:
+        return await super().critic_question(question)
+    
+    async def generate_answer(self, question: str, chunks: t.List[LCDocument]) -> t.Coroutine[dataclasses.Any, dataclasses.Any, dataclasses.Any]:
+        return super().generate_answer(question, chunks)
+    
+    async def modify_question(self, question: str, style: QuestionStyle, length: QuestionLength) -> str:
+        return await super().modify_question(question, style, length)
+                     
+    async def retrieve_chunks(self, nodes: t.List[Node], kwargs: dict | None = None) -> t.List[LCDocument] | None:
+        
+        #add nodes with titles and summaries if node level > 0
+        documents = []
+        for node in nodes:
+            if node.level.value > 0:
+                documents.append(LCDocument(
+                    page_content=node.properties["metadata"]["title"] + "\n\n" + node.properties["metadata"]["summary"],
+                    metadata={"source": "summary"}
+                ))
+            documents.append(LCDocument(
+                page_content=node.properties["page_content"],
+                metadata={"source": node.properties["metadata"]["source"]}
+            ))
+        return documents
+        

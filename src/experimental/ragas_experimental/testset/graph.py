@@ -85,6 +85,10 @@ class Node(ObjectType):
             metadata=self.properties.get("metadata", {}),
         )
 
+    def add_relationship(self, target, label, properties=None):
+        relationship = Relationship(source=self, target=target, label=label, properties=properties)
+        self.relationships.append(relationship)
+        
     def resolve_relationships(
         self,
         info,

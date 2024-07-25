@@ -10,12 +10,12 @@ from ragas_experimental.testset.questions.base import (
     QuestionStyle,
     StyleLengthDistribution,
 )
-from ragas_experimental.testset.questions.specific import SpecificQA
+from ragas_experimental.testset.questions.specific import QAfromrelationseperator
 
 __all__ = [
     "AbstractQA",
     "ComparativeAbstractQA",
-    "SpecificQA",
+    "QAfromrelationseperator",
     "QAGenerator",
     "QuestionStyle",
     "QuestionLength",

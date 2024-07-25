@@ -6,11 +6,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from ragas_experimental.testset.graph import Node, NodeLevel, NodeType, Relationship
 from ragas_experimental.testset.utils import merge_dicts
 
+
 @dataclass
-class HierarchialParser:
+class HierarchialSplitter:
     node_parser_ids: t.List[str]
     node_parser_map: t.Dict[str, RecursiveCharacterTextSplitter]
-    common_metadata_keys: t.List[str] = field(default_factory=lambda: ['x'])
+    common_metadata_keys: t.List[str] = field(default_factory=lambda: ['source'])
 
     @classmethod
     def from_defaults(

@@ -56,7 +56,7 @@ class Extractor(ABC):
             elif self.attribute in node.metadata:
                 return self.extract_text(json.dumps(node.metadata[self.attribute]))
             else:
-                raise ValueError(f"Attribute {self.attribute} not found in node")
+                raise ValueError(f"Attribute {self.attribute} not found in Document")
 
     def merge_extractors(self, *extractors) -> t.List["Extractor"]:
         raise NotImplementedError("merge_extractors() is not implemented for Extractor")

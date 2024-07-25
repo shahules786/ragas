@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from langchain_core.documents import Document as LCDocument
-from ragas_experimental.testset.graph import Node
+from ragas_experimental.testset.graph import Node, NodeLevel
 from ragas_experimental.testset.questions.base import (
     DEFAULT_DISTRIBUTION,
     QAC,
@@ -19,17 +19,18 @@ from ragas_experimental.testset.questions.prompts import (
     question_answering,
     specific_question_from_keyphrase,
 )
-from ragas_experimental.testset.questions.queries import CHILD_NODES_QUERY
+from ragas_experimental.testset.questions.queries import CHILD_NODES_QUERY, GET_ALL_CHILD_NODES
 from ragas_experimental.testset.utils import rng
 
 from ragas.executor import Executor
 from ragas.llms.prompt import Prompt
+from llama_index.readers.sec_filings import SECFilingsLoader
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class SpecificQA(QAGenerator):
+class QAfromrelationseperator(QAGenerator):
     name: str = "SpecificQuestion"
     generate_question_prompt: Prompt = field(
         default_factory=lambda: specific_question_from_keyphrase
@@ -211,3 +212,141 @@ class SpecificQA(QAGenerator):
             self.generate_answer_prompt.format(question=question, text=text)
         )
         return output.generations[0][0].text
+
+
+@dataclass
+class QAfromRandomLeafNodes(QAGenerator):
+    name: str = "SpecificQuestionfromRandomLeafNodes"
+    generate_question_prompt: Prompt = field(
+        default_factory=lambda: specific_question_from_keyphrase
+    )
+    generate_answer_prompt: Prompt = field(default_factory=lambda: question_answering)
+    critic_question_prompt: Prompt = field(default_factory=lambda: critic_question)
+    
+    async def generate_questions(
+        self, query, kwargs, distribution=DEFAULT_DISTRIBUTION, num_samples=5
+    ):
+        assert self.llm is not None, "LLM is not initialized"
+        query = query or GET_ALL_CHILD_NODES
+        kwargs = kwargs or {"level": NodeLevel.LEVEL_1.name}
+        nodes = self.query_nodes(query, kwargs)
+        
+        node_seed = []
+        if num_samples > len(nodes):
+            num_questions_per_node = num_samples // len(nodes)
+            reminder = num_samples - num_questions_per_node * len(nodes)
+            num_questions_per_node = [num_questions_per_node] * len(nodes)
+            num_questions_per_node[-1] += reminder
+        else:
+            num_questions_per_node = [1] * num_samples
+            nodes = rng.choice(np.array(nodes), size=num_samples)
+            
+        for node, seed in zip(nodes, num_questions_per_node):
+            
+            keyphrases = node.properties["metadata"]["keyphrases"]
+            keyphrases = rng.choice(np.array(keyphrases), size=seed)
+            node_seed.extend([([node], keyphrase) for keyphrase in keyphrases])
+            
+        exec = Executor(
+            desc="Generating",
+            keep_progress_bar=True,
+            raise_exceptions=True,
+            run_config=None,
+        )
+        
+        index = 0
+        for dist, prob in distribution.items():
+            style, length = dist
+            for i in range(int(prob * num_samples)):
+                exec.submit(
+                    self.generate_question,
+                    node_seed[i][0],
+                    style,
+                    length,
+                    {"keyphrase": node_seed[i][1]},
+                )
+                index += 1
+          
+        remaining_size = num_samples - index
+        if remaining_size != 0:
+            choices = np.array(distribution.keys())
+            prob = np.array(distribution.values())
+            random_distribution = rng.choice(choices, p=prob, size=remaining_size)
+            for dist in random_distribution:
+                style, length = dist
+                exec.submit(
+                    self.generate_question,
+                    node_seed[index][0],
+                    style,
+                    length,
+                    {"keyphrase": node_seed[index][1]},
+                )
+                index += 1
+
+        return exec.results()
+    
+    async def generate_question(self, nodes, style: QuestionStyle, length: QuestionLength, kwargs: dict | None = None):
+       
+        assert self.llm is not None, "LLM is not initialized"
+        assert self.embedding is not None, "Embedding is not initialized"
+        kwargs = kwargs or {}
+        keyphrase = kwargs.get("keyphrase", "")
+        
+        title = nodes[0].properties["metadata"]["title"]
+        try:
+            source = self.retrieve_chunks(nodes)
+            if source:
+                text = "\n\n".join(doc.page_content for doc in source)
+                p_value = self.generate_question_prompt.format(
+                    title=title, keyphrase=keyphrase, text=text
+                )
+                question = await self.llm.generate(p_value)
+                question = question.generations[0][0].text
+
+                critic_verdict = await self.critic_question(question)
+                if critic_verdict:
+                    question = await self.modify_question(question, style, length)
+                    answer = await self.generate_answer(question, source)
+                    return QAC(
+                        question=question,
+                        answer=answer,
+                        source=source,
+                        name=self.name,
+                        style=style,
+                        length=length,
+                    )
+                else:
+                    logger.warning("Critic rejected the question: %s", question)
+                    return QAC()
+            else:
+                logger.warning("Failed to retrieve chunks for nodes: %s", nodes)
+                return QAC()
+
+        except Exception as e:
+            logging.warning("Failed to generate question: %s", e)
+            raise e
+        
+    async def critic_question(self, question: str) -> bool:
+        assert self.llm is not None, "LLM is not initialized"
+        output = await self.llm.generate(critic_question.format(question=question))
+        output = json.loads(output.generations[0][0].text)
+        return all(score >= 2 for score in output.values())
+    
+    async def generate_answer(self, question: str, chunks: t.List[LCDocument]):
+        assert self.llm is not None, "LLM is not initialized"
+        text = "\n\n".join([chunk.page_content for chunk in chunks])
+        output = await self.llm.generate(
+            self.generate_answer_prompt.format(question=question, text=text)
+        )
+        return output.generations[0][0].text
+        
+    def retrieve_chunks(self, nodes: t.List[Node], kwargs: dict | None = None):
+        assert self.llm is not None, "LLM is not initialized"
+        documents = [
+            LCDocument(
+                page_content=node.properties["page_content"],
+                metadata=node.properties["metadata"],
+            )
+            for node in nodes
+        ]
+        return documents

@@ -20,11 +20,11 @@ from ragas_experimental.testset.questions import (
     DEFAULT_DISTRIBUTION,
     AbstractQA,
     ComparativeAbstractQA,
-    SpecificQA,
+    QAfromrelationseperator,
 )
 from ragas_experimental.testset.relationships import (
-    Cosine,
-    Jaccard,
+    CosineSimilarity,
+    JaccardSimilarity,
     RelationshipBuilder,
 )
 from ragas_experimental.testset.splitters import HeadlineSplitter
@@ -37,9 +37,10 @@ from ragas._analytics import TestsetGenerationEvent, track
 from ragas.llms.base import llm_factory
 from ragas.utils import check_if_sum_is_close
 
+from langchain_community.document_loaders import DirectoryLoader
 abstract_qa = AbstractQA(distribution=DEFAULT_DISTRIBUTION)
 comparative_qa = ComparativeAbstractQA(distribution=DEFAULT_DISTRIBUTION)
-specific_qa = SpecificQA(distribution=DEFAULT_DISTRIBUTION)
+specific_qa = QAfromrelationseperator(distribution=DEFAULT_DISTRIBUTION)
 
 QA_DISTRIBUTION = QADistribution(
     question_types=[abstract_qa, comparative_qa, specific_qa],
@@ -119,14 +120,14 @@ class SimpleTestGenerator(TestGenerator):
             nodes, [NodeLevel.LEVEL_1, NodeLevel.LEVEL_2, NodeLevel.LEVEL_3]
         )
 
-        jaccard = Jaccard(
+        jaccard = JaccardSimilarity(
             name="jaccard_over_keyphrases",
             attribute1="keyphrases",
             attribute2="keyphrases",
             type="fuzzy",
             threshold=50,
         )
-        cosine = Cosine(
+        cosine = CosineSimilarity(
             name="summary_similarity",
             attribute1="summary_embedding",
             attribute2="summary_embedding",

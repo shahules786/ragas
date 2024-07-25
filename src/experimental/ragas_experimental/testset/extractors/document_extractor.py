@@ -45,6 +45,9 @@ class DocumentExtractor:
             self._extractors.extend(
                 RulebasedExtractor.merge_extractors(*rule_extractor)
             )
+        for extractor in extractors:
+            if not isinstance(extractor, (LLMbasedExtractor, RulebasedExtractor)):
+                self._extractors.append(extractor)
 
     def extract(
         self, inputs: t.Sequence[Node | LCDocument], *args
@@ -100,11 +103,9 @@ class DocumentExtractor:
             if isinstance(extractor, LLMbasedExtractor):
                 output = await extractor.aextract(doc)
                 doc.metadata.update(output)
-            elif isinstance(extractor, RulebasedExtractor):
+            else:
                 output = extractor.extract(doc)
                 doc.metadata.update(output)
-            else:
-                raise ValueError("Extractor not supported")
 
         extractive_metadata_keys = []
         for metadata in doc.metadata:
@@ -116,6 +117,14 @@ class DocumentExtractor:
                 isinstance(item, str) for item in doc.metadata[metadata]
             ):
                 idx = [doc.page_content.find(item) for item in doc.metadata[metadata]]
+                if sum(i != -1 for i in idx) > len(idx) / 2:
+                    extractive_metadata_keys.append(metadata)
+                    
+            elif isinstance(doc.metadata[metadata], dict):
+                idx = [
+                    doc.page_content.find(item)
+                    for item in doc.metadata[metadata].keys()
+                ]
                 if sum(i != -1 for i in idx) > len(idx) / 2:
                     extractive_metadata_keys.append(metadata)
 
@@ -131,12 +140,10 @@ class DocumentExtractor:
                 if isinstance(extractor, LLMbasedExtractor):
                     output = await extractor.aextract(node)
                     node.properties["metadata"].update(output)
-                elif isinstance(extractor, RulebasedExtractor):
+                else:
                     output = extractor.extract(node)
                     node.properties["metadata"].update(output)
-                else:
-                    raise ValueError("Extractor not supported")
-
+                
         return node
 
     async def _embed_document(

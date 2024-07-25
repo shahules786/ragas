@@ -65,6 +65,29 @@ class HeadlineSplitter:
                         text_chunk_metadata[metadata_key] = [
                             metadata[i] for i in metadata_idx
                         ]
+                elif isinstance(metadata, dict):
+                    text_chunk_metadata[metadata_key] = {}
+                    for key, value in metadata.items():
+                        if isinstance(value, str):
+                            idx = page_content.find(key)
+                            if idx != -1:
+                                text_chunk_metadata[metadata_key].update({key: value})
+                        elif isinstance(value, list):
+                            metadata_match_idx = [page_content.find(item) for item in value]
+                            metadata_idx = [
+                                idx
+                                for idx, match_idx in enumerate(metadata_match_idx)
+                                if match_idx != -1
+                            ]
+                            if metadata_idx:
+                                text_chunk_metadata[metadata_key].update(
+                                    {key: [value[i] for i in metadata_idx]}
+                                )
+                        else:
+                            pass
+                else:
+                    pass
+                    
             text_chunk_metadata = merge_dicts(chunk.metadata, text_chunk_metadata)
             chunk.metadata = text_chunk_metadata
             for key in self._common_metadata_keys:

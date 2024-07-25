@@ -11,7 +11,8 @@ from ragas_experimental.testset.extractors.regex_based import (
     RulebasedExtractor,
     email_extractor,
     link_extractor,
-    markdown_headings,
+    MarkdownHeadingExtractor,
+    MarkdownLinkExtractor
 )
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "RulebasedExtractor",
     "email_extractor",
     "link_extractor",
-    "markdown_headings",
     "title_generator",
+    "MarkdownHeadingExtractor",
+    "MarkdownLinkExtractor",
 ]
