@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 import typing as t
 from dataclasses import dataclass, field
+from enum import Enum
 
 import numpy as np
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field
 
 from ragas.dataset_schema import SingleTurnSample
-from ragas.llms.output_parser import RagasOutputParserOld, get_json_format_instructions
 from ragas.metrics.base import (
     MetricType,
     MetricWithLLM,
@@ -22,161 +22,110 @@ if t.TYPE_CHECKING:
 
 
 class HasSegmentMethod(t.Protocol):
-    def segment(self, text) -> t.Any: ...
+    def segment(self, text) -> t.Any:
+        ...
 
 
 logger = logging.getLogger(__name__)
 
 
-# TODO: Remove this!!!
-class Statements(BaseModel):
-    sentence_index: int = Field(
-        ..., description="Index of the sentence from the statement list"
-    )
-    simpler_statements: t.List[str] = Field(..., description="the simpler statements")
-
-
-class StatementsAnswers(RootModel):
-    root: t.List[Statements]
-
-
-_statements_output_instructions = get_json_format_instructions(StatementsAnswers)
-_statements_output_parser = RagasOutputParserOld(pydantic_object=StatementsAnswers)
-
-########################################################
-
-
-class FaithfulnessStatements(BaseModel):
-    question: str = Field(description="The question to answer")
-    answer: str = Field(description="The answer to the question")
-    sentences: t.Dict[int, str] = Field(
-        description="A mapping of sentence index to the sentence"
-    )
-
-
-class SentenceComponents(BaseModel):
-    sentence_index: int = Field(description="The index of the sentence")
-    simpler_statements: t.List[str] = Field(
-        description="A list of simpler statements that can be directly inferred from the context"
-    )
-
-
-class SentencesSimplified(BaseModel):
-    sentences: t.List[SentenceComponents] = Field(
-        description="A list of sentences and their simpler versions"
-    )
-
-
-# examples
-example_input_1 = FaithfulnessStatements(
-    question="Who was Albert Einstein and what is he best known for?",
-    answer="He was a German-born theoretical physicist, widely acknowledged to be one of the greatest and most influential physicists of all time. He was best known for developing the theory of relativity, he also made important contributions to the development of the theory of quantum mechanics.",
-    sentences={
-        0: "He was a German-born theoretical physicist, widely acknowledged to be one of the greatest and most influential physicists of all time.",
-        1: "He was best known for developing the theory of relativity, he also made important contributions to the development of the theory of quantum mechanics.",
-    },
-)
-
-example_output_1 = SentencesSimplified(
-    sentences=[
-        SentenceComponents(
-            sentence_index=0,
-            simpler_statements=[
-                "Albert Einstein was a German-born theoretical physicist.",
-                "Albert Einstein is recognized as one of the greatest and most influential physicists of all time.",
-            ],
-        ),
-        SentenceComponents(
-            sentence_index=1,
-            simpler_statements=[
-                "Albert Einstein was best known for developing the theory of relativity.",
-                "Albert Einstein also made important contributions to the development of the theory of quantum mechanics.",
-            ],
-        ),
-    ]
-)
-
-
-class LongFormAnswerPrompt(PydanticPrompt[FaithfulnessStatements, SentencesSimplified]):
-    instruction = "Given a question, an answer, and sentences from the answer analyze the complexity of each sentence given under 'sentences' and break down each sentence into one or more fully understandable statements while also ensuring no pronouns are used in each statement. Format the outputs in JSON."
-    input_model = FaithfulnessStatements
-    output_model = SentencesSimplified
-    examples = [(example_input_1, example_output_1)]
-
-
-class StatementFaithfulnessAnswer(BaseModel):
-    statement: str = Field(..., description="the original statement, word-by-word")
+class NLIOutput(BaseModel):
     reason: str = Field(..., description="the reason of the verdict")
     verdict: int = Field(..., description="the verdict(0/1) of the faithfulness.")
 
 
-class NLIStatementOutput(BaseModel):
-    statements: t.List[StatementFaithfulnessAnswer]
-
-
-class NLIStatementInput(BaseModel):
+class NLIInput(BaseModel):
     context: str = Field(..., description="The context of the question")
-    statements: t.List[str] = Field(..., description="The statements to judge")
+    statement: str = Field(..., description="The statement to judge")
 
 
-class NLIStatementPrompt(PydanticPrompt[NLIStatementInput, NLIStatementOutput]):
-    instruction = "Your task is to judge the faithfulness of a series of statements based on a given context. For each statement you must return verdict as 1 if the statement can be directly inferred based on the context or 0 if the statement can not be directly inferred based on the context."
-    input_model = NLIStatementInput
-    output_model = NLIStatementOutput
-    examples = [
+class NLIStatementPrompt(PydanticPrompt[NLIInput, NLIOutput]):
+    instruction = "Given a context and a statement, determine if the statement can be inferred from context. Follow the level of inference as shown in the examples."
+    input_model = NLIInput
+    output_model = NLIOutput
+    examples = []
+
+
+class InferenceType(Enum):
+    LEVEL_1 = "LEVEL_1"
+    LEVEL_2 = "LEVEL_2"
+    LEVEL_3 = "LEVEL_3"
+
+
+example1_input = NLIInput(
+    context="Maria put on her running shoes and went outside.",
+    statement="Maria is going for a run",
+)
+
+nli_examples = {
+    InferenceType.LEVEL_1: [
         (
-            NLIStatementInput(
-                context="""John is a student at XYZ University. He is pursuing a degree in Computer Science. He is enrolled in several courses this semester, including Data Structures, Algorithms, and Database Management. John is a diligent student and spends a significant amount of time studying and completing assignments. He often stays late in the library to work on his projects.""",
-                statements=[
-                    "John is majoring in Biology.",
-                    "John is taking a course on Artificial Intelligence.",
-                    "John is a dedicated student.",
-                    "John has a part-time job.",
-                ],
-            ),
-            NLIStatementOutput(
-                statements=[
-                    StatementFaithfulnessAnswer(
-                        statement="John is majoring in Biology.",
-                        reason="John's major is explicitly mentioned as Computer Science. There is no information suggesting he is majoring in Biology.",
-                        verdict=0,
-                    ),
-                    StatementFaithfulnessAnswer(
-                        statement="John is taking a course on Artificial Intelligence.",
-                        reason="The context mentions the courses John is currently enrolled in, and Artificial Intelligence is not mentioned. Therefore, it cannot be deduced that John is taking a course on AI.",
-                        verdict=0,
-                    ),
-                    StatementFaithfulnessAnswer(
-                        statement="John is a dedicated student.",
-                        reason="The context states that he spends a significant amount of time studying and completing assignments. Additionally, it mentions that he often stays late in the library to work on his projects, which implies dedication.",
-                        verdict=1,
-                    ),
-                    StatementFaithfulnessAnswer(
-                        statement="John has a part-time job.",
-                        reason="There is no information given in the context about John having a part-time job.",
-                        verdict=0,
-                    ),
-                ]
+            example1_input,
+            NLIOutput(
+                reason="The context mentions that Maria put on her running shoes and went outside but does not explicitly state that she is going for a run.",
+                verdict=0,
             ),
         ),
+    ],
+    InferenceType.LEVEL_2: [
         (
-            NLIStatementInput(
-                context="Photosynthesis is a process used by plants, algae, and certain bacteria to convert light energy into chemical energy.",
-                statements=[
-                    "Albert Einstein was a genius.",
-                ],
-            ),
-            NLIStatementOutput(
-                statements=[
-                    StatementFaithfulnessAnswer(
-                        statement="Albert Einstein was a genius.",
-                        reason="The context and statement are unrelated",
-                        verdict=0,
-                    )
-                ]
+            example1_input,
+            NLIOutput(
+                reason="It is reasonable to infer that Maria is going for a run because she put on running shoes and went outside, actions commonly associated with preparing to run.",
+                verdict=1,
             ),
         ),
-    ]
+    ],
+    InferenceType.LEVEL_3: [
+        (
+            example1_input,
+            NLIOutput(
+                reason="Based on common practices and world knowledge, putting on running shoes and going outside strongly suggests that Maria is going for a run, as running shoes are specifically designed for that activity.",
+                verdict=1,
+            ),
+        ),
+    ],
+}
+
+
+example3_input = NLIInput(
+    context="Sarah is wearing a ring on her left hand's fourth finger.",
+    statement="Sarah is married.",
+)
+
+
+# For Level 1: Strict Literal Entailment (No Leap of Faith)
+nli_examples[InferenceType.LEVEL_1].append(
+    (
+        example3_input,
+        NLIOutput(
+            reason="The context states that Sarah is wearing a ring on her left hand's fourth finger but does not explicitly mention that she is married.",
+            verdict=0,
+        ),
+    )
+)
+
+# For Level 2: Moderate Inference (Some Leap of Faith)
+nli_examples[InferenceType.LEVEL_2].append(
+    (
+        example3_input,
+        NLIOutput(
+            reason="While Sarah wearing a ring may imply a relationship, it is not a direct inference that she is married without additional context.",
+            verdict=0,
+        ),
+    )
+)
+
+# For Level 3: Deep Inference and World Knowledge (Significant Leap of Faith)
+nli_examples[InferenceType.LEVEL_3].append(
+    (
+        example3_input,
+        NLIOutput(
+            reason="Based on cultural norms and world knowledge, wearing a ring on the fourth finger of the left hand signifies marriage, so it's strongly suggested that Sarah is married.",
+            verdict=1,
+        ),
+    )
+)
 
 
 @dataclass
