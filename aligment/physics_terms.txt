@@ -1,0 +1,130 @@
+gravity
+thermodynamics
+entropy
+relativity
+quantum mechanics
+inertia
+momentum
+force
+energy
+power
+velocity
+acceleration
+mass
+density
+pressure
+temperature
+frequency
+wavelength
+amplitude
+work
+heat
+conservation of energy
+conservation of momentum
+newton's laws
+coulomb's law
+electric field
+magnetic field
+current
+voltage
+resistance
+capacitance
+inductance
+ohm's law
+maxwell's equations
+wave-particle duality
+photoelectric effect
+blackbody radiation
+special relativity
+general relativity
+higgs boson
+fermions
+bosons
+superconductivity
+dark matter
+dark energy
+expansion of the universe
+big bang
+singularity
+uncertainty principle
+wavefunction
+kinetic energy
+potential energy
+impulse
+angular momentum
+torque
+centripetal force
+centrifugal force
+simple harmonic motion
+damped oscillation
+resonance
+refractive index
+snell's law
+total internal reflection
+diffraction
+interference
+polarization
+optical fiber
+photon
+compton scattering
+quantum entanglement
+spin
+schrodinger's equation
+heisenberg's uncertainty principle
+pauli exclusion principle
+feynman diagrams
+quantum tunneling
+fermion
+boson
+gluon
+weak nuclear force
+strong nuclear force
+atomic number
+isotopes
+radioactive decay
+half-life
+fission
+fusion
+binding energy
+neutrino
+proton
+neutron
+quark
+lepton
+antimatter
+planck's constant
+hubble's law
+cosmic microwave background
+redshift
+doppler effect
+event horizon
+black hole
+white dwarf
+neutron star
+supernova
+cosmological constant
+string theory
+multiverse
+quantum chromodynamics
+quantum electrodynamics
+relativistic mass
+absolute zero
+boyle's law
+charles's law
+ideal gas law
+carnot cycle
+second law of thermodynamics
+third law of thermodynamics
+entropy increase
+specific heat
+latent heat
+adiabatic process
+isothermal process
+isobaric process
+isovolumetric process
+thermal expansion
+heat capacity
+critical point
+phase transition
+boiling point
+melting point
