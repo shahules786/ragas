@@ -9,7 +9,6 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, Field
 
-from ragas.metrics._faithfulness import NLIStatementInput, NLIStatementPrompt
 from ragas.metrics.base import (
     MetricType,
     MetricWithLLM,
@@ -179,6 +178,105 @@ class ClaimDecompositionPrompt(
     output_model = ClaimDecompositionOutput
 
 
+class NLIOutput(BaseModel):
+    reason: str = Field(..., description="the reason of the verdict")
+    verdict: int = Field(..., description="the verdict(0/1) of the faithfulness.")
+
+
+class NLIInput(BaseModel):
+    context: str = Field(..., description="The context of the question")
+    statement: str = Field(..., description="The statement to judge")
+
+
+class NLIStatementPrompt(PydanticPrompt[NLIInput, NLIOutput]):
+    instruction = "Given a context and a statement, determine if the statement can be inferred from context. Follow the level of inference as shown in the examples."
+    input_model = NLIInput
+    output_model = NLIOutput
+    examples = []
+
+
+class InferenceType(Enum):
+    LEVEL_1 = "1"
+    LEVEL_2 = "2"
+    LEVEL_3 = "3"
+
+
+example1_input = NLIInput(
+    context="Maria put on her running shoes and went outside.",
+    statement="Maria is going for a run",
+)
+
+nli_examples = {
+    InferenceType.LEVEL_1: [
+        (
+            example1_input,
+            NLIOutput(
+                reason="The context mentions that Maria put on her running shoes and went outside but does not explicitly state that she is going for a run.",
+                verdict=0,
+            ),
+        ),
+    ],
+    InferenceType.LEVEL_2: [
+        (
+            example1_input,
+            NLIOutput(
+                reason="It is reasonable to infer that Maria is going for a run because she put on running shoes and went outside, actions commonly associated with preparing to run.",
+                verdict=1,
+            ),
+        ),
+    ],
+    InferenceType.LEVEL_3: [
+        (
+            example1_input,
+            NLIOutput(
+                reason="Based on common practices and world knowledge, putting on running shoes and going outside strongly suggests that Maria is going for a run, as running shoes are specifically designed for that activity.",
+                verdict=1,
+            ),
+        ),
+    ],
+}
+
+
+example3_input = NLIInput(
+    context="Sarah is wearing a ring on her left hand's fourth finger.",
+    statement="Sarah is married.",
+)
+
+
+# For Level 1: Strict Literal Entailment (No Leap of Faith)
+nli_examples[InferenceType.LEVEL_1].append(
+    (
+        example3_input,
+        NLIOutput(
+            reason="The context states that Sarah is wearing a ring on her left hand's fourth finger but does not explicitly mention that she is married.",
+            verdict=0,
+        ),
+    )
+)
+
+# For Level 2: Moderate Inference (Some Leap of Faith)
+nli_examples[InferenceType.LEVEL_2].append(
+    (
+        example3_input,
+        NLIOutput(
+            reason="While Sarah wearing a ring may imply a relationship, it is not a direct inference that she is married without additional context.",
+            verdict=0,
+        ),
+    )
+)
+
+# For Level 3: Deep Inference and World Knowledge (Significant Leap of Faith)
+nli_examples[InferenceType.LEVEL_3].append(
+    (
+        example3_input,
+        NLIOutput(
+            reason="Based on cultural norms and world knowledge, wearing a ring on the fourth finger of the left hand signifies marriage, so it's strongly suggested that Sarah is married.",
+            verdict=1,
+        ),
+    )
+)
+
+
 @dataclass
 class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
     name: str = "factual_correctness"  # type: ignore
@@ -187,7 +285,8 @@ class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
     )
     mode: t.Literal["precision", "recall", "f1"] = "f1"
     atomicity: t.Literal["low", "high"] = "low"
-    coverage: t.Literal["low", "high"] = "low"
+    coverage: t.Literal["low", "high"] = "high"
+    inference_level: t.Literal["1", "2", "3"] = "3"
     claim_decomposition_prompt: PydanticPrompt = ClaimDecompositionPrompt()
     nli_prompt: PydanticPrompt = NLIStatementPrompt()
 
@@ -201,6 +300,15 @@ class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
         if not self.claim_decomposition_prompt.examples:
             logger.warning(
                 f"No examples found for the atomicity and coverage level: {value}"
+            )
+
+        for item in InferenceType:
+            if item.value == self.inference_level:
+                self.nli_prompt.examples.extend(nli_examples[item])
+
+        if not self.nli_prompt.examples:
+            logger.warning(
+                f"No examples found for the inference level: {self.inference_level}"
             )
         self.segmenter = get_segmenter(language="english")
 
@@ -223,11 +331,15 @@ class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
         self, premise: str, hypothesis_list: t.List[str], callbacks: Callbacks
     ) -> NDArray[np.bool_]:
         assert self.llm is not None, "LLM must be set"
-        prompt_input = NLIStatementInput(context=premise, statements=hypothesis_list)
-        response = await self.nli_prompt.generate(
-            data=prompt_input, llm=self.llm, callbacks=callbacks
-        )
-        return np.array([bool(result.verdict) for result in response.statements])
+
+        verdicts = []
+        for hypothesis in hypothesis_list:
+            prompt_input = NLIInput(context=premise, statement=hypothesis)
+            response = await self.nli_prompt.generate(
+                data=prompt_input, llm=self.llm, callbacks=callbacks
+            )
+            verdicts.append(bool(response.verdict))
+        return np.array(verdicts)
 
     async def _single_turn_ascore(
         self, sample: SingleTurnSample, callbacks: Callbacks
@@ -253,12 +365,12 @@ class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
         false_negatives = sum(~response_reference)
 
         if self.mode == "precision":
-            score = true_positives / (true_positives + false_positives)
+            score = true_positives / (true_positives + false_positives + 1e-8)
         elif self.mode == "recall":
-            score = true_positives / (true_positives + false_negatives)
+            score = true_positives / (true_positives + false_negatives + 1e-8)
         else:
-            precision = true_positives / (true_positives + false_positives)
-            recall = true_positives / (true_positives + false_negatives)
+            precision = true_positives / (true_positives + false_positives + 1e-8)
+            recall = true_positives / (true_positives + false_negatives + 1e-8)
             score = 2 * (precision * recall) / (precision + recall + 1e-8)
 
         return np.round(score, 2)
