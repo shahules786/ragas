@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import typing as t
 from dataclasses import dataclass, field
-from enum import Enum
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,246 +34,141 @@ class ClaimDecompositionOutput(BaseModel):
     decomposed_claims: t.List[t.List[str]] = Field(..., title="Decomposed Claims")
 
 
-# Define an enum for decomposition types
-class DecompositionType(Enum):
-    LOW_ATOMICITY_LOW_COVERAGE = "low_atomicity_low_coverage"
-    LOW_ATOMICITY_HIGH_COVERAGE = "low_atomicity_high_coverage"
-    HIGH_ATOMICITY_LOW_COVERAGE = "high_atomicity_low_coverage"
-    HIGH_ATOMICITY_HIGH_COVERAGE = "high_atomicity_high_coverage"
-
-
-# Example input data
-example1_input = ClaimDecompositionInput(
-    response="Charles Babbage was a French mathematician, philosopher, and food critic.",
-    sentences=[
-        "Charles Babbage was a French mathematician, philosopher, and food critic."
-    ],
-)
-
-# Define the examples using the new structure
-claim_decomposition_examples = {
-    DecompositionType.LOW_ATOMICITY_LOW_COVERAGE: [
-        (
-            example1_input,
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    ["Charles Babbage was a mathematician and philosopher."]
-                ]
-            ),
-        )
-    ],
-    DecompositionType.LOW_ATOMICITY_HIGH_COVERAGE: [
-        (
-            example1_input,
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    [
-                        "Charles Babbage was a French mathematician, philosopher, and food critic."
-                    ]
-                ]
-            ),
-        )
-    ],
-    DecompositionType.HIGH_ATOMICITY_LOW_COVERAGE: [
-        (
-            example1_input,
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    ["Charles Babbage was a mathematician."],
-                    ["Charles Babbage was a philosopher."],
-                ]
-            ),
-        )
-    ],
-    DecompositionType.HIGH_ATOMICITY_HIGH_COVERAGE: [
-        (
-            example1_input,
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    ["Charles Babbage was a mathematician."],
-                    ["Charles Babbage was a philosopher."],
-                    ["Charles Babbage was a food critic."],
-                    ["Charles Babbage was French."],
-                ]
-            ),
-        )
-    ],
-}
-
-# Example input data with two sentences
-example2_input = ClaimDecompositionInput(
-    response="Albert Einstein was a German theoretical physicist. He developed the theory of relativity and also contributed to the development of quantum mechanics.",
-    sentences=[
-        "Albert Einstein was a German theoretical physicist.",
-        "He developed the theory of relativity and also contributed to the development of quantum mechanics.",
-    ],
-)
-
-# Adding examples to the dictionary with different decomposition types
-claim_decomposition_examples[DecompositionType.LOW_ATOMICITY_LOW_COVERAGE].append(
-    (
-        example2_input,
-        ClaimDecompositionOutput(
-            decomposed_claims=[
-                ["Albert Einstein was a German physicist."],
-                [
-                    "Albert Einstein developed relativity and contributed to quantum mechanics."
-                ],
-            ]
-        ),
-    )
-)
-
-claim_decomposition_examples[DecompositionType.LOW_ATOMICITY_HIGH_COVERAGE].append(
-    (
-        example2_input,
-        ClaimDecompositionOutput(
-            decomposed_claims=[
-                ["Albert Einstein was a German theoretical physicist."],
-                [
-                    "Albert Einstein developed the theory of relativity and also contributed to the development of quantum mechanics."
-                ],
-            ]
-        ),
-    )
-)
-
-claim_decomposition_examples[DecompositionType.HIGH_ATOMICITY_LOW_COVERAGE].append(
-    (
-        example2_input,
-        ClaimDecompositionOutput(
-            decomposed_claims=[
-                ["Albert Einstein was a German theoretical physicist."],
-                ["Albert Einstein developed the theory of relativity."],
-            ]
-        ),
-    )
-)
-
-claim_decomposition_examples[DecompositionType.HIGH_ATOMICITY_HIGH_COVERAGE].append(
-    (
-        example2_input,
-        ClaimDecompositionOutput(
-            decomposed_claims=[
-                ["Albert Einstein was a German theoretical physicist."],
-                [
-                    "Albert Einstein developed the theory of relativity.",
-                    "Albert Einstein contributed to the development of quantum mechanics.",
-                ],
-            ]
-        ),
-    )
-)
-
-
 class ClaimDecompositionPrompt(
     PydanticPrompt[ClaimDecompositionInput, ClaimDecompositionOutput]
 ):
     instruction = """
-    Decompose and break down each of the input sentences into one or more standalone statements. Each statement should be a standalone claim that can be independently verified.
-    Follow the level of atomicity and coverage as shown in the examples.
+    Decompose and break down each of the input sentences into one or more standalone statements.
     """
     input_model = ClaimDecompositionInput
     output_model = ClaimDecompositionOutput
+    exampes = [
+        # Example 1
+        (
+            ClaimDecompositionInput(
+                response="John went to the store and bought some milk.",
+                sentences=["John went to the store and bought some milk."],
+            ),
+            ClaimDecompositionOutput(
+                decomposed_claims=[
+                    ["John went to the store.", "John bought some milk."]
+                ]
+            ),
+        ),
+        # Example 2
+        (
+            ClaimDecompositionInput(
+                response="Alice loves painting, and she has a gallery exhibition next week.",
+                sentences=[
+                    "Alice loves painting, and she has a gallery exhibition next week."
+                ],
+            ),
+            ClaimDecompositionOutput(
+                decomposed_claims=[
+                    ["Alice loves painting.", "She has a gallery exhibition next week."]
+                ]
+            ),
+        ),
+        # Example 3
+        (
+            ClaimDecompositionInput(
+                response="The weather was terrible, so the football match was postponed.",
+                sentences=[
+                    "The weather was terrible, so the football match was postponed."
+                ],
+            ),
+            ClaimDecompositionOutput(
+                decomposed_claims=[
+                    ["The weather was terrible.", "The football match was postponed."]
+                ]
+            ),
+        ),
+    ]
 
 
-class NLIOutput(BaseModel):
+class SingleNLIOutput(BaseModel):
     reason: str = Field(..., description="the reason of the verdict")
     verdict: int = Field(..., description="the verdict(0/1) of the faithfulness.")
 
+class NLIOutput(BaseModel):
+    output: t.List[SingleNLIOutput] = Field(..., description="The output of the NLI model")
 
 class NLIInput(BaseModel):
     context: str = Field(..., description="The context of the question")
-    statement: str = Field(..., description="The statement to judge")
+    statement: t.List[str] = Field(..., description="The statement to judge")
 
 
 class NLIStatementPrompt(PydanticPrompt[NLIInput, NLIOutput]):
-    instruction = "Given a context and a statement, determine if the statement can be inferred from context. Follow the level of inference as shown in the examples."
+    instruction = "Given a context and a statement, determine if the statement can be inferred from context."
     input_model = NLIInput
     output_model = NLIOutput
-    examples = []
-
-
-class InferenceType(Enum):
-    LEVEL_1 = "1"
-    LEVEL_2 = "2"
-    LEVEL_3 = "3"
-
-
-example1_input = NLIInput(
-    context="Maria put on her running shoes and went outside.",
-    statement="Maria is going for a run",
-)
-
-nli_examples = {
-    InferenceType.LEVEL_1: [
+    examples = [
         (
-            example1_input,
-            NLIOutput(
-                reason="The context mentions that Maria put on her running shoes and went outside but does not explicitly state that she is going for a run.",
-                verdict=0,
+            NLIInput(
+                context="The Eiffel Tower is located in Paris, France. It was built in 1889.",
+                statement=[
+                    "The Eiffel Tower is in Berlin.",
+                    "The Eiffel Tower was constructed in the 19th century."
+                ]
             ),
+            NLIOutput(
+                output=[
+                    SingleNLIOutput(
+                        reason="The context states that the Eiffel Tower is in Paris, not Berlin.",
+                        verdict=0
+                    ),
+                    SingleNLIOutput(
+                        reason="The context mentions it was built in 1889, which is in the 19th century.",
+                        verdict=1
+                    )
+                ]
+            )
         ),
-    ],
-    InferenceType.LEVEL_2: [
+        # Second Example
         (
-            example1_input,
-            NLIOutput(
-                reason="It is reasonable to infer that Maria is going for a run because she put on running shoes and went outside, actions commonly associated with preparing to run.",
-                verdict=1,
+            NLIInput(
+                context="Python is a high-level programming language known for its readability and support for multiple programming paradigms.",
+                statement=[
+                    "Python is a low-level language.",
+                    "Python supports object-oriented programming."
+                ]
             ),
+            NLIOutput(
+                output=[
+                    SingleNLIOutput(
+                        reason="The context states that Python is a high-level language, not a low-level one.",
+                        verdict=0
+                    ),
+                    SingleNLIOutput(
+                        reason="Since Python supports multiple programming paradigms and OOP is one of them, this can be inferred.",
+                        verdict=1
+                    )
+                ]
+            )
         ),
-    ],
-    InferenceType.LEVEL_3: [
+        # Third Example
         (
-            example1_input,
-            NLIOutput(
-                reason="Based on common practices and world knowledge, putting on running shoes and going outside strongly suggests that Maria is going for a run, as running shoes are specifically designed for that activity.",
-                verdict=1,
+            NLIInput(
+                context="The Great Wall of China was built to protect Chinese states against invasions and raids. It is one of the most impressive architectural feats in history.",
+                statement=[
+                    "The Great Wall of China was constructed for trade purposes.",
+                    "The Great Wall is considered an impressive architectural achievement."
+                ]
             ),
-        ),
-    ],
-}
-
-
-example3_input = NLIInput(
-    context="Sarah is wearing a ring on her left hand's fourth finger.",
-    statement="Sarah is married.",
-)
-
-
-# For Level 1: Strict Literal Entailment (No Leap of Faith)
-nli_examples[InferenceType.LEVEL_1].append(
-    (
-        example3_input,
-        NLIOutput(
-            reason="The context states that Sarah is wearing a ring on her left hand's fourth finger but does not explicitly mention that she is married.",
-            verdict=0,
-        ),
-    )
-)
-
-# For Level 2: Moderate Inference (Some Leap of Faith)
-nli_examples[InferenceType.LEVEL_2].append(
-    (
-        example3_input,
-        NLIOutput(
-            reason="While Sarah wearing a ring may imply a relationship, it is not a direct inference that she is married without additional context.",
-            verdict=0,
-        ),
-    )
-)
-
-# For Level 3: Deep Inference and World Knowledge (Significant Leap of Faith)
-nli_examples[InferenceType.LEVEL_3].append(
-    (
-        example3_input,
-        NLIOutput(
-            reason="Based on cultural norms and world knowledge, wearing a ring on the fourth finger of the left hand signifies marriage, so it's strongly suggested that Sarah is married.",
-            verdict=1,
-        ),
-    )
-)
+            NLIOutput(
+                output=[
+                    SingleNLIOutput(
+                        reason="The context mentions it was built to protect against invasions, not for trade.",
+                        verdict=0
+                    ),
+                    SingleNLIOutput(
+                        reason="The context states it is one of the most impressive architectural feats in history.",
+                        verdict=1
+                    )
+                ]
+            )
+        )
+    ]
 
 
 @dataclass
@@ -284,32 +178,15 @@ class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
         default_factory=lambda: {MetricType.SINGLE_TURN: {"response", "reference"}}
     )
     mode: t.Literal["precision", "recall", "f1"] = "f1"
-    atomicity: t.Literal["low", "high"] = "low"
-    coverage: t.Literal["low", "high"] = "high"
-    inference_level: t.Literal["1", "2", "3"] = "3"
+    with_examples: bool = False
     claim_decomposition_prompt: PydanticPrompt = ClaimDecompositionPrompt()
     nli_prompt: PydanticPrompt = NLIStatementPrompt()
 
     def __post_init__(self):
-        value = f"{self.atomicity}_atomicity_{self.coverage}_coverage"
-        for item in DecompositionType:
-            if item.value == value:
-                self.claim_decomposition_prompt.examples.extend(
-                    claim_decomposition_examples[item]
-                )
-        if not self.claim_decomposition_prompt.examples:
-            logger.warning(
-                f"No examples found for the atomicity and coverage level: {value}"
-            )
+        if not self.with_examples:
+            self.claim_decomposition_prompt.examples = []
+            self.nli_prompt.examples = []
 
-        for item in InferenceType:
-            if item.value == self.inference_level:
-                self.nli_prompt.examples.extend(nli_examples[item])
-
-        if not self.nli_prompt.examples:
-            logger.warning(
-                f"No examples found for the inference level: {self.inference_level}"
-            )
         self.segmenter = get_segmenter(language="english")
 
     async def decompose_claims(
@@ -332,13 +209,11 @@ class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
     ) -> NDArray[np.bool_]:
         assert self.llm is not None, "LLM must be set"
 
-        verdicts = []
-        for hypothesis in hypothesis_list:
-            prompt_input = NLIInput(context=premise, statement=hypothesis)
-            response = await self.nli_prompt.generate(
-                data=prompt_input, llm=self.llm, callbacks=callbacks
-            )
-            verdicts.append(bool(response.verdict))
+        prompt_input = NLIInput(context=premise, statement=hypothesis_list)
+        response = await self.nli_prompt.generate(
+            data=prompt_input, llm=self.llm, callbacks=callbacks
+        )
+        verdicts = [bool([output.verdict for output in response.output])]
         return np.array(verdicts)
 
     async def _single_turn_ascore(
