@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, Field
 
 from ragas.metrics.base import (
     MetricType,
@@ -15,6 +14,7 @@ from ragas.metrics.base import (
     get_segmenter,
 )
 from ragas.prompt import PydanticPrompt
+from ragas.metrics.examples import ClaimDecompositionInput, ClaimDecompositionOutput, NLIInput, NLIOutput, nli_examples, new_claim_decomposition_examples
 
 if t.TYPE_CHECKING:
     from langchain_core.callbacks import Callbacks
@@ -25,151 +25,26 @@ if t.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ClaimDecompositionInput(BaseModel):
-    response: str = Field(..., title="Response")
-    sentences: t.List[str] = Field(..., title="Sentences from response")
-
-
-class ClaimDecompositionOutput(BaseModel):
-    decomposed_claims: t.List[t.List[str]] = Field(..., title="Decomposed Claims")
-
-
 class ClaimDecompositionPrompt(
     PydanticPrompt[ClaimDecompositionInput, ClaimDecompositionOutput]
 ):
     instruction = """
-    Decompose and break down each of the input sentences into one or more standalone statements.
+    Decompose and break down each of the input sentences into one or more standalone factual statements. 
+    Focus on the factual content of each sentence, and exclude any metaphors, analogies, or comparisons 
+    that do not contribute directly to the factual claims. Ensure the output consists of concrete, verifiable statements.
     """
     input_model = ClaimDecompositionInput
     output_model = ClaimDecompositionOutput
-    exampes = [
-        # Example 1
-        (
-            ClaimDecompositionInput(
-                response="John went to the store and bought some milk.",
-                sentences=["John went to the store and bought some milk."],
-            ),
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    ["John went to the store.", "John bought some milk."]
-                ]
-            ),
-        ),
-        # Example 2
-        (
-            ClaimDecompositionInput(
-                response="Alice loves painting, and she has a gallery exhibition next week.",
-                sentences=[
-                    "Alice loves painting, and she has a gallery exhibition next week."
-                ],
-            ),
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    ["Alice loves painting.", "She has a gallery exhibition next week."]
-                ]
-            ),
-        ),
-        # Example 3
-        (
-            ClaimDecompositionInput(
-                response="The weather was terrible, so the football match was postponed.",
-                sentences=[
-                    "The weather was terrible, so the football match was postponed."
-                ],
-            ),
-            ClaimDecompositionOutput(
-                decomposed_claims=[
-                    ["The weather was terrible.", "The football match was postponed."]
-                ]
-            ),
-        ),
-    ]
-
-
-class SingleNLIOutput(BaseModel):
-    reason: str = Field(..., description="the reason of the verdict")
-    verdict: int = Field(..., description="the verdict(0/1) of the faithfulness.")
-
-class NLIOutput(BaseModel):
-    output: t.List[SingleNLIOutput] = Field(..., description="The output of the NLI model")
-
-class NLIInput(BaseModel):
-    context: str = Field(..., description="The context of the question")
-    statement: t.List[str] = Field(..., description="The statement to judge")
-
+    examples = new_claim_decomposition_examples
+    
 
 class NLIStatementPrompt(PydanticPrompt[NLIInput, NLIOutput]):
-    instruction = "Given a context and a statement, determine if the statement can be inferred from context."
+    instruction = "Given a context and a statement, determine if the statement can be inferred from context. Follow the examples to understand the level of inference required."
     input_model = NLIInput
     output_model = NLIOutput
-    examples = [
-        (
-            NLIInput(
-                context="The Eiffel Tower is located in Paris, France. It was built in 1889.",
-                statement=[
-                    "The Eiffel Tower is in Berlin.",
-                    "The Eiffel Tower was constructed in the 19th century."
-                ]
-            ),
-            NLIOutput(
-                output=[
-                    SingleNLIOutput(
-                        reason="The context states that the Eiffel Tower is in Paris, not Berlin.",
-                        verdict=0
-                    ),
-                    SingleNLIOutput(
-                        reason="The context mentions it was built in 1889, which is in the 19th century.",
-                        verdict=1
-                    )
-                ]
-            )
-        ),
-        # Second Example
-        (
-            NLIInput(
-                context="Python is a high-level programming language known for its readability and support for multiple programming paradigms.",
-                statement=[
-                    "Python is a low-level language.",
-                    "Python supports object-oriented programming."
-                ]
-            ),
-            NLIOutput(
-                output=[
-                    SingleNLIOutput(
-                        reason="The context states that Python is a high-level language, not a low-level one.",
-                        verdict=0
-                    ),
-                    SingleNLIOutput(
-                        reason="Since Python supports multiple programming paradigms and OOP is one of them, this can be inferred.",
-                        verdict=1
-                    )
-                ]
-            )
-        ),
-        # Third Example
-        (
-            NLIInput(
-                context="The Great Wall of China was built to protect Chinese states against invasions and raids. It is one of the most impressive architectural feats in history.",
-                statement=[
-                    "The Great Wall of China was constructed for trade purposes.",
-                    "The Great Wall is considered an impressive architectural achievement."
-                ]
-            ),
-            NLIOutput(
-                output=[
-                    SingleNLIOutput(
-                        reason="The context mentions it was built to protect against invasions, not for trade.",
-                        verdict=0
-                    ),
-                    SingleNLIOutput(
-                        reason="The context states it is one of the most impressive architectural feats in history.",
-                        verdict=1
-                    )
-                ]
-            )
-        )
-    ]
-
+    examples = nli_examples
+    
+    
 
 @dataclass
 class FactualCorrectness(MetricWithLLM, SingleTurnMetric):
