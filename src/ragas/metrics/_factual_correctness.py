@@ -14,7 +14,7 @@ from ragas.metrics.base import (
     get_segmenter,
 )
 from ragas.prompt import PydanticPrompt
-from ragas.metrics.examples import ClaimDecompositionInput, ClaimDecompositionOutput, NLIInput, NLIOutput, nli_examples, new_claim_decomposition_examples
+from ragas.metrics.examples import ClaimDecompositionInput, ClaimDecompositionOutput, NLIInput, NLIOutput, nli_examples, new_claim_decomposition_examples, random_nli_examples, random_claim_decomposition_examples
 
 if t.TYPE_CHECKING:
     from langchain_core.callbacks import Callbacks
@@ -29,20 +29,20 @@ class ClaimDecompositionPrompt(
     PydanticPrompt[ClaimDecompositionInput, ClaimDecompositionOutput]
 ):
     instruction = """
-    Decompose and break down each of the input sentences into one or more standalone factual statements. 
-    Focus on the factual content of each sentence, and exclude any metaphors, analogies, or comparisons 
-    that do not contribute directly to the factual claims. Ensure the output consists of concrete, verifiable statements.
-    """
+    Decompose and break down each of the input sentences into one or more standalone factual statements."""
+    # Focus on the factual content of each sentence, and exclude any metaphors, analogies, or comparisons 
+    # that do not contribute directly to the factual claims. Ensure the output consists of concrete, verifiable statements.
     input_model = ClaimDecompositionInput
     output_model = ClaimDecompositionOutput
-    examples = new_claim_decomposition_examples
+    examples = random_claim_decomposition_examples
     
 
 class NLIStatementPrompt(PydanticPrompt[NLIInput, NLIOutput]):
-    instruction = "Given a context and a statement, determine if the statement can be inferred from context. Follow the examples to understand the level of inference required."
+    instruction = "Given a context and a statement, determine if the statement can be inferred from context."
+    # Follow the examples to understand the level of inference required.
     input_model = NLIInput
     output_model = NLIOutput
-    examples = nli_examples
+    examples = random_nli_examples
     
     
 

@@ -256,5 +256,26 @@ nli_examples = [
             reason="The context clearly refers to Columbus reaching the Americas, not Australia. The statement is contradicts the information given in the context, hence False.",
             verdict=False,
         )])
-    )
+    ),
+    (
+        NLIInput(
+            context="World War II, which lasted from 1939 to 1945, was a global conflict involving many of the world's nations. It resulted in significant geopolitical changes, including the creation of the United Nations and the start of the Cold War. The war had widespread economic and social consequences, leading to the destruction of infrastructure, loss of lives, and the displacement of millions of people.",
+            statement=["The aftermath of World War II still affects global politics today."]
+        ),
+        NLIOutput(output=[SingleNLIOutput(
+            reason="The context does not explicitly state modern-day effects, but it is reasonable to infer that the significant geopolitical changes after World War II continue to influence global politics today.",
+            verdict=True
+        )])
+    ),
+    (
+        NLIInput(
+            context="The Industrial Revolution, which began in the late 18th century, had profound impacts on society and the economy. It marked a shift from agrarian economies to industrialized ones, leading to urbanization as people moved to cities for factory jobs. This period saw significant technological advancements, such as the steam engine, which revolutionized transportation and manufacturing. Economically, it led to increased production and efficiency, but also to harsh working conditions and the rise of a factory-based economy. Socially, it altered family structures and roles, with more women and children entering the workforce. The Industrial Revolution also contributed to the rise of a middle class and increased consumerism, while exacerbating social inequalities and environmental degradation.",
+            statement=["The legacy of the Industrial Revolution continues to challenge us today."],
+        ),
+        NLIOutput(output=[SingleNLIOutput(
+            reason="While the context does not explicitly mention ongoing challenges, it's reasonable to infer that the significant changes brought by the Industrial Revolution still affect society today, making the statement plausible.",
+            verdict=True
+        )])
+    ),
+    
 ]
