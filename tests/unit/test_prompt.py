@@ -2,9 +2,10 @@ import copy
 
 import pytest
 from langchain_core.outputs import Generation, LLMResult
+from langchain_core.prompt_values import StringPromptValue
+from pydantic import BaseModel
 
 from ragas.llms.base import BaseRagasLLM
-from ragas.llms.prompt import PromptValue
 from ragas.prompt import StringIO, StringPrompt
 from ragas.run_config import RunConfig
 
@@ -12,7 +13,7 @@ from ragas.run_config import RunConfig
 class EchoLLM(BaseRagasLLM):
     def generate_text(  # type: ignore
         self,
-        prompt: PromptValue,
+        prompt: StringPromptValue,
         *args,
         **kwargs,
     ) -> LLMResult:
@@ -20,7 +21,7 @@ class EchoLLM(BaseRagasLLM):
 
     async def agenerate_text(  # type: ignore
         self,
-        prompt: PromptValue,
+        prompt: StringPromptValue,
         *args,
         **kwargs,
     ) -> LLMResult:
@@ -120,9 +121,9 @@ def test_prompt_hash():
 
 def test_prompt_hash_in_ragas(fake_llm):
     # check with a prompt inside ragas
-    from ragas.testset.synthesizers import AbstractQuerySynthesizer
+    from ragas.testset.synthesizers.multi_hop import MultiHopAbstractQuerySynthesizer
 
-    synthesizer = AbstractQuerySynthesizer(llm=fake_llm)
+    synthesizer = MultiHopAbstractQuerySynthesizer(llm=fake_llm)
     prompts = synthesizer.get_prompts()
     for prompt in prompts.values():
         assert hash(prompt) == hash(prompt)
@@ -178,12 +179,12 @@ def test_prompt_save_load_language(tmp_path):
 
 
 def test_save_existing_prompt(tmp_path):
-    from ragas.testset.synthesizers.prompts import CommonThemeFromSummariesPrompt
+    from ragas.testset.synthesizers.prompts import ThemesPersonasMatchingPrompt
 
-    p = CommonThemeFromSummariesPrompt()
+    p = ThemesPersonasMatchingPrompt()
     file_path = tmp_path / "test_prompt.json"
     p.save(file_path)
-    p2 = CommonThemeFromSummariesPrompt.load(file_path)
+    p2 = ThemesPersonasMatchingPrompt.load(file_path)
     assert p == p2
 
 
@@ -193,13 +194,35 @@ def test_prompt_class_attributes():
     We want to make sure there is no relationship between the class attributes
     and instance.
     """
-    from ragas.testset.synthesizers.prompts import CommonThemeFromSummariesPrompt
+    from ragas.testset.synthesizers.prompts import ThemesPersonasMatchingPrompt
 
-    p = CommonThemeFromSummariesPrompt()
-    p_another_instance = CommonThemeFromSummariesPrompt()
+    p = ThemesPersonasMatchingPrompt()
+    p_another_instance = ThemesPersonasMatchingPrompt()
     assert p.instruction == p_another_instance.instruction
     assert p.examples == p_another_instance.examples
     p.instruction = "You are a helpful assistant."
     p.examples = []
     assert p.instruction != p_another_instance.instruction
     assert p.examples != p_another_instance.examples
+
+
+@pytest.mark.asyncio
+async def test_prompt_parse_retry():
+    from ragas.exceptions import RagasOutputParserException
+    from ragas.prompt import PydanticPrompt, StringIO
+
+    class OutputModel(BaseModel):
+        example: str
+
+    class Prompt(PydanticPrompt[StringIO, OutputModel]):
+        instruction = ""
+        input_model = StringIO
+        output_model = OutputModel
+
+    echo_llm = EchoLLM(run_config=RunConfig())
+    prompt = Prompt()
+    with pytest.raises(RagasOutputParserException):
+        await prompt.generate(
+            data=StringIO(text="this prompt will be echoed back as invalid JSON"),
+            llm=echo_llm,
+        )

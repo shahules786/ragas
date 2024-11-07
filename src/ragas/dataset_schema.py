@@ -2,19 +2,24 @@ from __future__ import annotations
 
 import json
 import typing as t
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from datasets import Dataset as HFDataset
 from pydantic import BaseModel, field_validator
 
+from ragas.callbacks import ChainRunEncoder, parse_run_traces
 from ragas.cost import CostCallbackHandler
 from ragas.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
-from ragas.utils import safe_nanmean
+from ragas.utils import RAGAS_API_URL, safe_nanmean
 
 if t.TYPE_CHECKING:
+    from pathlib import Path
+
     from datasets import Dataset as HFDataset
     from pandas import DataFrame as PandasDataframe
 
+    from ragas.callbacks import ChainRun
     from ragas.cost import TokenUsage
 
 
@@ -134,19 +139,34 @@ class MultiTurnSample(BaseSample):
 
 
 Sample = t.TypeVar("Sample", bound=BaseSample)
+T = t.TypeVar("T", bound="RagasDataset")
 
 
-class RagasDataset(BaseModel, t.Generic[Sample]):
+@dataclass
+class RagasDataset(ABC, t.Generic[Sample]):
     samples: t.List[Sample]
 
-    @field_validator("samples")
-    def validate_samples(cls, samples: t.List[BaseSample]) -> t.List[BaseSample]:
+    def __post_init__(self):
+        self.samples = self.validate_samples(self.samples)
+
+    @abstractmethod
+    def to_list(self) -> t.List[t.Dict]:
+        """Converts the samples to a list of dictionaries."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_list(cls: t.Type[T], data: t.List[t.Dict]) -> T:
+        """Creates an RagasDataset from a list of dictionaries."""
+        pass
+
+    def validate_samples(self, samples: t.List[Sample]) -> t.List[Sample]:
         """Validates that all samples are of the same type."""
         if len(samples) == 0:
             return samples
 
-        first_sample_type = type(samples[0])
-        if not all(isinstance(sample, first_sample_type) for sample in samples):
+        first_sample_type = type(self.samples[0])
+        if not all(isinstance(sample, first_sample_type) for sample in self.samples):
             raise ValueError("All samples must be of the same type")
 
         return samples
@@ -154,20 +174,6 @@ class RagasDataset(BaseModel, t.Generic[Sample]):
     def get_sample_type(self) -> t.Type[Sample]:
         """Returns the type of the samples in the dataset."""
         return type(self.samples[0])
-
-    def _to_list(self) -> t.List[t.Dict]:
-        """Converts the samples to a list of dictionaries."""
-        rows = [sample.to_dict() for sample in self.samples]
-
-        if self.get_sample_type() == MultiTurnSample:
-            for sample in rows:
-                for item in sample["user_input"]:
-                    if not isinstance(item["content"], str):
-                        item["content"] = json.dumps(
-                            item["content"], ensure_ascii=False
-                        )
-
-        return rows
 
     def to_hf_dataset(self) -> HFDataset:
         """Converts the dataset to a Hugging Face Dataset."""
@@ -178,10 +184,10 @@ class RagasDataset(BaseModel, t.Generic[Sample]):
                 "datasets is not installed. Please install it to use this function."
             )
 
-        return HFDataset.from_list(self._to_list())
+        return HFDataset.from_list(self.to_list())
 
     @classmethod
-    def from_hf_dataset(cls, dataset: HFDataset):
+    def from_hf_dataset(cls: t.Type[T], dataset: HFDataset) -> T:
         """Creates an EvaluationDataset from a Hugging Face Dataset."""
         return cls.from_list(dataset.to_list())
 
@@ -194,28 +200,20 @@ class RagasDataset(BaseModel, t.Generic[Sample]):
                 "pandas is not installed. Please install it to use this function."
             )
 
-        data = self._to_list()
+        data = self.to_list()
         return pd.DataFrame(data)
+
+    @classmethod
+    def from_pandas(cls, dataframe: PandasDataframe):
+        """Creates an EvaluationDataset from a pandas DataFrame."""
+        return cls.from_list(dataframe.to_dict(orient="records"))
 
     def features(self):
         """Returns the features of the samples."""
         return self.samples[0].get_features()
 
     @classmethod
-    def from_list(cls, mapping: t.List[t.Dict]):
-        """Creates an EvaluationDataset from a list of dictionaries."""
-        samples = []
-        if all(
-            "user_input" in item and isinstance(mapping[0]["user_input"], list)
-            for item in mapping
-        ):
-            samples.extend(MultiTurnSample(**sample) for sample in mapping)
-        else:
-            samples.extend(SingleTurnSample(**sample) for sample in mapping)
-        return cls(samples=samples)
-
-    @classmethod
-    def from_dict(cls, mapping: t.Dict):
+    def from_dict(cls: t.Type[T], mapping: t.Dict) -> T:
         """Creates an EvaluationDataset from a dictionary."""
         samples = []
         if all(
@@ -227,25 +225,15 @@ class RagasDataset(BaseModel, t.Generic[Sample]):
             samples.extend(SingleTurnSample(**sample) for sample in mapping)
         return cls(samples=samples)
 
-    @classmethod
-    def from_csv(cls, path: str):
-        """Creates an EvaluationDataset from a CSV file."""
-        import csv
-
-        with open(path, "r", newline="") as csvfile:
-            reader = csv.DictReader(csvfile)
-            data = [row for row in reader]
-        return cls.from_list(data)
-
-    def to_csv(self, path: str):
+    def to_csv(self, path: t.Union[str, Path]):
         """Converts the dataset to a CSV file."""
         import csv
 
-        data = self._to_list()
+        data = self.to_list()
         if not data:
             return
 
-        fieldnames = self.features()
+        fieldnames = data[0].keys()
 
         with open(path, "w", newline="") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -253,14 +241,14 @@ class RagasDataset(BaseModel, t.Generic[Sample]):
             for row in data:
                 writer.writerow(row)
 
-    def to_jsonl(self, path: str):
+    def to_jsonl(self, path: t.Union[str, Path]):
         """Converts the dataset to a JSONL file."""
         with open(path, "w") as jsonlfile:
-            for sample in self.samples:
-                jsonlfile.write(json.dumps(sample.to_dict(), ensure_ascii=False) + "\n")
+            for sample in self.to_list():
+                jsonlfile.write(json.dumps(sample, ensure_ascii=False) + "\n")
 
     @classmethod
-    def from_jsonl(cls, path: str):
+    def from_jsonl(cls: t.Type[T], path: t.Union[str, Path]) -> T:
         """Creates an EvaluationDataset from a JSONL file."""
         with open(path, "r") as jsonlfile:
             data = [json.loads(line) for line in jsonlfile]
@@ -282,6 +270,7 @@ class RagasDataset(BaseModel, t.Generic[Sample]):
 SingleTurnSampleOrMultiTurnSample = t.Union[SingleTurnSample, MultiTurnSample]
 
 
+@dataclass
 class EvaluationDataset(RagasDataset[SingleTurnSampleOrMultiTurnSample]):
     """
     Represents a dataset of evaluation samples.
@@ -307,8 +296,6 @@ class EvaluationDataset(RagasDataset[SingleTurnSampleOrMultiTurnSample]):
         Creates an EvaluationDataset from a list of dictionaries.
     from_dict(mapping)
         Creates an EvaluationDataset from a dictionary.
-    from_csv(path)
-        Creates an EvaluationDataset from a CSV file.
     to_csv(path)
         Converts the dataset to a CSV file.
     to_jsonl(path)
@@ -333,6 +320,37 @@ class EvaluationDataset(RagasDataset[SingleTurnSampleOrMultiTurnSample]):
         else:
             raise TypeError("Index must be int or slice")
 
+    def is_multi_turn(self) -> bool:
+        return self.get_sample_type() == MultiTurnSample
+
+    def to_list(self) -> t.List[t.Dict]:
+        rows = [sample.to_dict() for sample in self.samples]
+
+        if self.get_sample_type() == MultiTurnSample:
+            for sample in rows:
+                for item in sample["user_input"]:
+                    if not isinstance(item["content"], str):
+                        item["content"] = json.dumps(
+                            item["content"], ensure_ascii=False
+                        )
+
+        return rows
+
+    @classmethod
+    def from_list(cls, data: t.List[t.Dict]) -> EvaluationDataset:
+        samples = []
+        if all(
+            "user_input" in item and isinstance(data[0]["user_input"], list)
+            for item in data
+        ):
+            samples.extend(MultiTurnSample(**sample) for sample in data)
+        else:
+            samples.extend(SingleTurnSample(**sample) for sample in data)
+        return cls(samples=samples)
+
+    def __repr__(self) -> str:
+        return f"EvaluationDataset(features={self.features()}, len={len(self.samples)})"
+
 
 @dataclass
 class EvaluationResult:
@@ -352,9 +370,11 @@ class EvaluationResult:
     """
 
     scores: t.List[t.Dict[str, t.Any]]
-    dataset: t.Optional[EvaluationDataset] = None
+    dataset: EvaluationDataset
     binary_columns: t.List[str] = field(default_factory=list)
     cost_cb: t.Optional[CostCallbackHandler] = None
+    traces: t.List[t.Dict[str, t.Any]] = field(default_factory=list)
+    ragas_traces: t.Dict[str, ChainRun] = field(default_factory=dict, repr=False)
 
     def __post_init__(self):
         # transform scores from list of dicts to dict of lists
@@ -370,6 +390,16 @@ class EvaluationResult:
             if metric_name not in self.binary_columns:
                 value = t.cast(float, value)
                 values.append(value + 1e-10)
+
+        # parse the traces
+        self.traces = parse_run_traces(self.ragas_traces)
+
+    def __repr__(self) -> str:
+        score_strs = [f"'{k}': {v:0.4f}" for k, v in self._repr_dict.items()]
+        return "{" + ", ".join(score_strs) + "}"
+
+    def __getitem__(self, key: str) -> t.List[float]:
+        return self._scores_dict[key]
 
     def to_pandas(self, batch_size: int | None = None, batched: bool = False):
         """
@@ -463,9 +493,36 @@ class EvaluationResult:
             cost_per_input_token, cost_per_output_token, per_model_costs
         )
 
-    def __repr__(self) -> str:
-        score_strs = [f"'{k}': {v:0.4f}" for k, v in self._repr_dict.items()]
-        return "{" + ", ".join(score_strs) + "}"
+    def upload(self, base_url: str = RAGAS_API_URL, verbose: bool = True) -> str:
+        from datetime import datetime, timezone
 
-    def __getitem__(self, key: str) -> t.List[float]:
-        return self._scores_dict[key]
+        import requests
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        root_trace = [
+            trace for trace in self.ragas_traces.values() if trace.parent_run_id is None
+        ][0]
+        packet = json.dumps(
+            {
+                "run_id": str(root_trace.run_id),
+                "created_at": timestamp,
+                "evaluation_run": [t.model_dump() for t in self.ragas_traces.values()],
+            },
+            cls=ChainRunEncoder,
+        )
+
+        response = requests.post(
+            f"{base_url}/alignment/evaluation",
+            data=packet,
+            headers={"Content-Type": "application/json"},
+        )
+
+        if response.status_code != 200:
+            raise Exception(f"Failed to upload results: {response.text}")
+
+        evaluation_endpoint = (
+            f"https://app.ragas.io/alignment/evaluation/{root_trace.run_id}"
+        )
+        if verbose:
+            print(f"Evaluation results uploaded! View at {evaluation_endpoint}")
+        return evaluation_endpoint

@@ -5,7 +5,8 @@ import typing as t
 from dataclasses import dataclass, field
 
 import numpy as np
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field
 
 from ragas.dataset_schema import SingleTurnSample
 from ragas.llms.output_parser import RagasOutputParserOld, get_json_format_instructions
@@ -181,7 +182,7 @@ class NLIStatementPrompt(PydanticPrompt[NLIStatementInput, NLIStatementOutput]):
 
 @dataclass
 class Faithfulness(MetricWithLLM, SingleTurnMetric):
-    name: str = "faithfulness"  # type: ignore
+    name: str = "faithfulness"
     _required_columns: t.Dict[MetricType, t.Set[str]] = field(
         default_factory=lambda: {
             MetricType.SINGLE_TURN: {
@@ -243,7 +244,7 @@ class Faithfulness(MetricWithLLM, SingleTurnMetric):
         sentences_with_index = {
             i: sentence
             for i, sentence in enumerate(sentences)
-            if sentence.strip().endswith(('.', '。', '!', '！'))
+            if sentence.strip().endswith((".", "。", "!", "！"))
         }
 
         statements_simplified = await self.statement_prompt.generate(
@@ -275,7 +276,7 @@ class Faithfulness(MetricWithLLM, SingleTurnMetric):
         row = sample.to_dict()
         return await self._ascore(row, callbacks)
 
-    async def _ascore(self: t.Self, row: t.Dict, callbacks: Callbacks) -> float:
+    async def _ascore(self, row: t.Dict, callbacks: Callbacks) -> float:
         """
         returns the NLI score for each (q, c, a) pair
         """
@@ -296,7 +297,7 @@ class Faithfulness(MetricWithLLM, SingleTurnMetric):
 
 @dataclass
 class FaithfulnesswithHHEM(Faithfulness):
-    name: str = "faithfulness_with_hhem"  # type: ignore
+    name: str = "faithfulness_with_hhem"
     device: str = "cpu"
     batch_size: int = 10
 
@@ -330,7 +331,7 @@ class FaithfulnesswithHHEM(Faithfulness):
         for ndx in range(0, length_of_pairs, self.batch_size):
             yield pairs[ndx : min(ndx + self.batch_size, length_of_pairs)]
 
-    async def _ascore(self: t.Self, row: t.Dict, callbacks: Callbacks) -> float:
+    async def _ascore(self, row: t.Dict, callbacks: Callbacks) -> float:
         """
         returns the NLI score for each (q, c, a) pair
         """
