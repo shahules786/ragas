@@ -1,6 +1,5 @@
 from ragas.prompt import PydanticPrompt
 from pydantic import BaseModel
-from typing import List, Tuple
 
 
 class CreateQuestion(BaseModel):
@@ -236,27 +235,27 @@ class ErrorInductionPrompt(PydanticPrompt[ModifyAnswer, ModifiedAnswer]):
     
     
 # Define the input model
-class RewriteInput(BaseModel):
+class RewriteReference(BaseModel):
     question: str
     reference_answer: str
 
 # Define the output model with the rewritten answer
-class RewrittenQuestion(BaseModel):
+class RewrittenAnswer(BaseModel):
     rewritten_answer: str
 
 # Define the prompt class
-class RewritePrompt(PydanticPrompt[RewriteInput, RewrittenQuestion]):
+class RewritePrompt(PydanticPrompt[RewriteReference, RewrittenAnswer]):
     instruction: str = (
         "Rewrite the provided reference answer using headings, bullet points, and other formatting to make it more structured and engaging. "
         "Incorporate subjective interpretations, inferences from world knowledge, analogical explanations, and emotional or dramatic framing. "
         "You may also modernize comparisons, simplify complex ideas, and add relevant details inferred from the reference for clarity. "
         "Maintain factual accuracy while allowing flexibility to extend, shorten, or infer meaning."
     )
-    input_model = RewriteInput
-    output_model = RewrittenQuestion
+    input_model = RewriteReference
+    output_model = RewrittenAnswer
     examples = [
         (
-            RewriteInput(
+            RewriteReference(
                 question="What were the main institutions of Athenian democracy, and how did they function?",
                 reference_answer=(
                     "The Athenian democracy was characterized by institutions such as the Assembly, where citizens could vote on laws and policies, and the Council of 500, which set the agenda for the Assembly. "
@@ -265,7 +264,7 @@ class RewritePrompt(PydanticPrompt[RewriteInput, RewrittenQuestion]):
                     "Additionally, other institutions like the Courts and various public offices played crucial roles in maintaining the democratic framework, promoting accountability, and enabling citizen involvement in governance."
                 )
             ),
-            RewrittenQuestion(
+            RewrittenAnswer(
                 rewritten_answer=(
                     "# The Main Institutions of Athenian Democracy\n"
                     "Athenian democracy thrived because of several key institutions that empowered its citizens and ensured an organized political process. Here’s how each functioned:\n\n"
@@ -283,7 +282,7 @@ class RewritePrompt(PydanticPrompt[RewriteInput, RewrittenQuestion]):
             )
         ),
         (
-            RewriteInput(
+            RewriteReference(
                 question="How did the birth of democracy in Athens shape the political landscape of ancient Greece?",
                 reference_answer=(
                     "The birth of democracy in Athens, around the 5th century BCE, marked a significant turning point in the political landscape of ancient Greece. "
@@ -294,7 +293,7 @@ class RewritePrompt(PydanticPrompt[RewriteInput, RewrittenQuestion]):
                     "Despite its limitations, such as excluding women, slaves, and non-citizens from participation, Athenian democracy was a pioneering model that emphasized the importance of civic engagement and the rule of law."
                 )
             ),
-            RewrittenQuestion(
+            RewrittenAnswer(
                 rewritten_answer=(
                     "# How Athenian Democracy Reshaped Ancient Greece\n"
                     "The birth of democracy in Athens during the 5th century BCE was not just a local experiment; it was a political transformation that influenced the entire Greek world and beyond. Here’s how:\n\n"
@@ -311,4 +310,54 @@ class RewritePrompt(PydanticPrompt[RewriteInput, RewrittenQuestion]):
                 )
             )
         ),
+    ]
+    
+
+class Response(BaseModel):
+    response: str
+
+class ErroredResponse(BaseModel):
+    errored_response: str
+    error_description: str
+
+class RewritePromptWithError(PydanticPrompt[Response, ErroredResponse]):
+    instruction: str = (
+        "Rewrite the provided response by introducing a single factual inaccuracy that directly affects the core content, such as a key date, "
+        "numerical detail, or specific event. Avoid introducing the error in metaphors, analogies, or peripheral comparisons. "
+        "The inaccuracy should be subtle but identifiable by comparing it with the original response without needing external knowledge. "
+        "Ensure all other aspects of the response, including wording and structure, remain unchanged."
+    )
+    input_model = Response
+    output_model = ErroredResponse
+    examples = [
+        (
+            Response(
+                response=(
+                    "The Space Race was a competitive period between the United States and the Soviet Union. It began with the Soviet Union's "
+                    "launch of Sputnik 1, the first artificial satellite, in 1957. This event motivated the U.S. to establish NASA in 1958, "
+                    "setting the stage for a series of milestones in space exploration, including the 1969 Apollo 11 Moon landing."
+                )
+            ),
+            ErroredResponse(
+                errored_response=(
+                    "The Space Race was a competitive period between the United States and the Soviet Union. It began with the Soviet Union's "
+                    "launch of Sputnik 1, the first artificial satellite, in 1958. This event motivated the U.S. to establish NASA in 1958, "
+                    "setting the stage for a series of milestones in space exploration, including the 1969 Apollo 11 Moon landing."
+                ),
+                error_description="The date for the launch of Sputnik 1 was changed from 1957 to 1958, introducing a minor factual inaccuracy."
+            )
+        ),
+        (
+            Response(
+                response=(
+                    "The wheel transformed transportation by making it easier to move heavy loads. Before the wheel, people relied on sledges or dragged goods across the ground."
+                )
+            ),
+            ErroredResponse(
+                errored_response=(
+                    "The wheel transformed transportation by making it easier to move heavy loads. Before the wheel, people relied on carts or dragged goods across the ground."
+                ),
+                error_description="The errored response incorrectly states that people used 'carts' before the invention of the wheel, which introduces a subtle factual inaccuracy."
+            )
+        )
     ]
