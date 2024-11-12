@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 
 from ragas.dataset_schema import MultiTurnSample, SingleTurnSample
+from ragas.embeddings.base import BaseRagasEmbeddings, embedding_factory
 from ragas.metrics.base import (
     MetricType,
     MetricWithLLM,
@@ -284,6 +285,7 @@ class AspectCriticWithReference(AspectCritic):
     multi_turn_prompt: PydanticPrompt = field(
         default_factory=lambda: MultiTurnAspectCriticPrompt()
     )
+    embedding_model: BaseRagasEmbeddings = embedding_factory()
 
     async def _ascore(self, row: t.Dict, callbacks: Callbacks) -> float:
         
@@ -308,7 +310,11 @@ class AspectCriticWithReference(AspectCritic):
             reference=reference,
             criteria=self.definition,
         )
-
+        index_path = "/Users/shahules/ragas/alingment-exp/indices/selected_20_indices_input_resp_ref.npy"
+        pos_examples, neg_examples = await self.retrieve_few_shot_examples(prompt_input, self.embedding_model, index_path=index_path, top_k=3,search="similarity")
+        self.single_turn_prompt.examples = pos_examples
+        self.single_turn_prompt.negative_examples = neg_examples
+        
         response = await self.single_turn_prompt.generate(
             data=prompt_input,
             llm=self.llm,
@@ -316,6 +322,10 @@ class AspectCriticWithReference(AspectCritic):
         )
 
         return self._compute_score([response])
+    
+    async def _single_turn_ascore(self, sample: SingleTurnSample, callbacks: Callbacks) -> float:
+        row = sample.to_dict()
+        return await self._ascore(row, callbacks)
 
     async def _multi_turn_ascore(
         self, sample: MultiTurnSample, callbacks: Callbacks

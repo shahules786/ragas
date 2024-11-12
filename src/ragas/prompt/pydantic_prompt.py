@@ -35,6 +35,7 @@ class PydanticPrompt(BasePrompt, t.Generic[InputModel, OutputModel]):
     output_model: t.Type[OutputModel]
     instruction: str
     examples: t.List[t.Tuple[InputModel, OutputModel]] = []
+    negative_examples: t.List[t.Tuple[InputModel, OutputModel]] = []
 
     def _generate_instruction(self) -> str:
         return self.instruction
@@ -47,6 +48,7 @@ class PydanticPrompt(BasePrompt, t.Generic[InputModel, OutputModel]):
         )
 
     def _generate_examples(self):
+        string_return = ""
         if self.examples:
             example_strings = []
             for e in self.examples:
@@ -61,13 +63,31 @@ class PydanticPrompt(BasePrompt, t.Generic[InputModel, OutputModel]):
                     + output_data.model_dump_json(indent=4)
                 )
 
-            return (
+            string_return += (
                 "These are some examples to show how to perform the above instruction\n"
                 + "\n\n".join(example_strings)
             )
-        # if no examples are provided
-        else:
-            return ""
+        
+        if self.negative_examples:
+            example_strings = []
+            for e in self.negative_examples:
+                input_data, output_data = e
+                example_strings.append(
+                    self.instruction
+                    + "\n"
+                    + "input: "
+                    + input_data.model_dump_json(indent=4)
+                    + "\n"
+                    + "output: "
+                    + output_data.model_dump_json(indent=4)
+                )
+
+            string_return += (
+                "\n\nFew Negative examples to show incorrect output for given instruction\n"
+                + "\n\n".join(example_strings)
+            )
+            
+        return string_return
 
     def to_string(self, data: t.Optional[InputModel] = None) -> str:
         return (
