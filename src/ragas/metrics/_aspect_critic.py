@@ -207,13 +207,11 @@ class AspectCriticInputWithReference(BaseModel):
     user_input: str = Field(description="The input to the model")
     response: str = Field(description="The response from the model")
     reference: str = Field(description="The reference answer for comparison")
-    criteria: str = Field(description="The criteria to evaluate the response")
 
 
 class MultiTurnAspectCriticInputWithReference(BaseModel):
     user_input: str = Field(description="The input to the model")
     reference: str = Field(description="The reference answer for comparison")
-    criteria: str = Field(description="The criteria to evaluate the response")
 
 
 class AspectCriticOutputWithReference(BaseModel):
@@ -224,23 +222,9 @@ class AspectCriticOutputWithReference(BaseModel):
 class SingleTurnAspectCriticPromptWithReference(
     PydanticPrompt[AspectCriticInputWithReference, AspectCriticOutputWithReference]
 ):
-    instruction = "Given an input, response, and reference. Evaluate the submission only using the given criteria. Use only 'Yes' (1) and 'No' (0) as verdict."
+    instruction = "",
     input_model = AspectCriticInputWithReference
     output_model = AspectCriticOutputWithReference
-    examples = [
-        (
-            AspectCriticInputWithReference(
-                user_input="Who was the director of Los Alamos Laboratory?",
-                response="Einstein was the director of Los Alamos Laboratory.",
-                reference="J. Robert Oppenheimer was the director of Los Alamos Laboratory.",
-                criteria="Is the output written in perfect grammar",
-            ),
-            AspectCriticOutputWithReference(
-                reason="The criteria for evaluation is whether the output is written in perfect grammar. In this case, the output is grammatically correct.",
-                verdict=1,
-            ),
-        )
-    ]
 
 
 @dataclass
@@ -260,7 +244,7 @@ class AspectCriticWithReference(AspectCritic):
         The number of times self consistency checks is made. Final judgement is
         made using majority vote.
     """
-
+    definition: str
     _required_columns: t.Dict[MetricType, t.Set[str]] = field(
         default_factory=lambda: {
             MetricType.SINGLE_TURN: {
@@ -275,9 +259,6 @@ class AspectCriticWithReference(AspectCritic):
             },
         }
     )
-    definition: str = field(
-        default="check if response is similar to reference", repr=True
-    )
     single_turn_prompt: PydanticPrompt = field(
         default_factory=lambda: SingleTurnAspectCriticPromptWithReference()
     )
@@ -286,6 +267,11 @@ class AspectCriticWithReference(AspectCritic):
         default_factory=lambda: MultiTurnAspectCriticPrompt()
     )
     embedding_model: BaseRagasEmbeddings = embedding_factory()
+    dynamic_retrevial: bool = False
+    
+    def __post_init__(self):
+        self.single_turn_prompt.instruction = self.definition
+        self.multi_turn_prompt.instruction = self.definition
 
     async def _ascore(self, row: t.Dict, callbacks: Callbacks) -> float:
         
@@ -308,13 +294,13 @@ class AspectCriticWithReference(AspectCritic):
             user_input=user_input,
             response=response,
             reference=reference,
-            criteria=self.definition,
         )
-        index_path = "/Users/shahules/ragas/alingment-exp/indices/selected_20_indices_input_resp_ref.npy"
-        pos_examples, neg_examples = await self.retrieve_few_shot_examples(prompt_input, self.embedding_model, index_path=index_path, top_k=3,search="similarity")
-        self.single_turn_prompt.examples = pos_examples
-        self.single_turn_prompt.negative_examples = neg_examples
-        
+        if self.dynamic_retrevial:
+            index_path = "/Users/shahules/ragas/alingment-exp/indices/selected_20_indices_input_resp_ref.npy"
+            pos_examples, neg_examples = await self.retrieve_few_shot_examples(prompt_input, self.embedding_model, index_path=index_path, top_k=3,search="similarity")
+            self.single_turn_prompt.examples = pos_examples
+            self.single_turn_prompt.negative_examples = neg_examples
+            
         response = await self.single_turn_prompt.generate(
             data=prompt_input,
             llm=self.llm,
@@ -341,7 +327,6 @@ class AspectCriticWithReference(AspectCritic):
         prompt_input = MultiTurnAspectCriticInputWithReference(
             user_input=interaction,
             reference=sample.reference,
-            criteria=self.definition,
         )
         response = await self.multi_turn_prompt.generate(
             data=prompt_input,

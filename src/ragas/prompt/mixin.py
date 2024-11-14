@@ -155,8 +155,8 @@ class PromptMixin:
                     output_example = output_model(**example["output"][0])
                     if example["qdrant"] in ["TN", "TP"]:    
                         pos_examples.append((input_example, output_example))
-                    elif example["qdrant"] in ["FN", "FP"]:
-                        neg_examples.append((input_example, output_example))
+                    # elif example["qdrant"] in ["FN", "FP"]:
+                    #     neg_examples.append((input_example, output_example))
                     else:
                         pass
         elif search == "random":
@@ -165,10 +165,10 @@ class PromptMixin:
             for example in examples:
                 input_example = input_model(**example["input"])
                 output_example = output_model(**example["output"][0])
-                if example["qdrant"] in ["TN","TP"]:    
+                if example["qdrant"] in ["TN", "TP"]:    
                     pos_examples.append((input_example, output_example))
-                elif example["qdrant"] in ["FN","FP"]:
-                    neg_examples.append((input_example, output_example))
+                # elif example["qdrant"] in ["FN","FP"]:
+                #     neg_examples.append((input_example, output_example))
                 else:
                     pass
         else:

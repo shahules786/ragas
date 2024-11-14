@@ -54,8 +54,7 @@ class PydanticPrompt(BasePrompt, t.Generic[InputModel, OutputModel]):
             for e in self.examples:
                 input_data, output_data = e
                 example_strings.append(
-                    self.instruction
-                    + "\n"
+                    "\n"
                     + "input: "
                     + input_data.model_dump_json(indent=4)
                     + "\n"
@@ -64,7 +63,7 @@ class PydanticPrompt(BasePrompt, t.Generic[InputModel, OutputModel]):
                 )
 
             string_return += (
-                "These are some examples to show how to perform the above instruction\n"
+                "\nEXAMPLES\n"
                 + "\n\n".join(example_strings)
             )
         
@@ -73,8 +72,7 @@ class PydanticPrompt(BasePrompt, t.Generic[InputModel, OutputModel]):
             for e in self.negative_examples:
                 input_data, output_data = e
                 example_strings.append(
-                    self.instruction
-                    + "\n"
+                    "\n"
                     + "input: "
                     + input_data.model_dump_json(indent=4)
                     + "\n"
