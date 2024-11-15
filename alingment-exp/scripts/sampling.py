@@ -1,6 +1,4 @@
-from unittest.mock import Base
 
-from click import prompt
 from ragas.prompt import PydanticPrompt
 from pydantic import BaseModel
 from ragas.metrics._aspect_critic import AspectCriticInputWithReference, AspectCriticOutputWithReference
