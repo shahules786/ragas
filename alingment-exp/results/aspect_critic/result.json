@@ -1,0 +1,40 @@
+[
+    {
+        "score": 0.6567164179104478,
+        "prompt": "Given the user_input, reference and response. Is the response correct compared with the reference",
+        "metric": "answer_correctness",
+        "llm": "text-embedding-3-small",
+        "embedding_model": null,
+        "dynamic_retrieval": false,
+        "search_type": null
+    },
+    {
+        "score": 0.6567164179104478,
+        "prompt": "Given the user_input, reference and response. Is the response correct compared with the reference",
+        "metric": "answer_correctness",
+        "llm": "text-embedding-3-small",
+        "embedding_model": true,
+        "dynamic_retrieval": true,
+        "search_type": "random"
+    },
+    {
+        "score": 0.7636363636363637,
+        "prompt": "Given the user_input, reference and response. Is the response correct compared with the reference",
+        "metric": "answer_correctness",
+        "llm": "text-embedding-3-small",
+        "embedding_model": true,
+        "dynamic_retrieval": true,
+        "search_type": "similarity"
+    },
+    {
+        "score": 0.7857142857142857,
+        "prompt": "Evaluate the response based on its alignment with the reference text and determine if it is correct. Consider the accuracy of the information, the relevance of the details provided, and any factual inaccuracies. Ensure that specific dates or timeframes mentioned in the reference are present in the response, as their absence can lead to misalignment. Emphasize the importance of verifying that all critical details, such as dates, are included to ensure full alignment with the reference. Provide a reason for your evaluation and assign a verdict: 1 if the response is correct and aligns well with the reference, and 0 if there are significant inaccuracies, missing critical details like dates, or misalignments.",
+        "metric": "answer_correctness",
+        "initial_prompt": "Evaluate the response based on its alignment with the reference text and determine if it is correct. Consider the accuracy of the information, the relevance of the details provided, and any factual inaccuracies. Ensure that specific dates or timeframes mentioned in the reference are present in the response, as their absence can lead to misalignment. Emphasize the importance of verifying that all critical details, such as dates, are included to ensure full alignment with the reference. Provide a reason for your evaluation and assign a verdict: 1 if the response is correct and aligns well with the reference, and 0 if there are significant inaccuracies, missing critical details like dates, or misalignments.",
+        "final_prompt": "Evaluate the response based on its alignment with the reference text and determine if it is correct. Consider the accuracy of the information, the relevance of the details provided, and any factual inaccuracies. Ensure that specific dates or timeframes mentioned in the reference are present in the response, as their absence can lead to misalignment. Emphasize the importance of verifying that all critical details, such as dates, are included to ensure full alignment with the reference. Provide a reason for your evaluation and assign a verdict: 1 if the response is correct and aligns well with the reference, and 0 if there are significant inaccuracies, missing critical details like dates, or misalignments.",
+        "llm": "text-embedding-3-small",
+        "embedding_model": true,
+        "dynamic_retrieval": true,
+        "search_type": "similarity"
+    }
+]

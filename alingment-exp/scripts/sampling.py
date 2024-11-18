@@ -89,3 +89,25 @@ class FeedbackMutationPromptGeneration(PydanticPrompt[FeedbackMutationPromptInpu
     )
     input_model = FeedbackMutationPromptInput
     output_model = Prompt
+    
+    
+    
+class SingleInputOutput(BaseModel):
+    input: str
+    output: t.Dict[str, t.Any]
+    
+class ErrorAnalysisInput(BaseModel):
+    prompt: str
+    examples: t.List[SingleInputOutput]
+    
+class ErrorAnalysisOutput(BaseModel):
+    feedbacks: t.List[str]
+    
+class ErrorAnalysisPrompt(PydanticPrompt[ErrorAnalysisInput, ErrorAnalysisOutput]):
+    name: str = "error_analysis"
+    instruction: str = (
+        "You're an expert reviewer. Given a prompt and a set of (input  containing (user_input, response, reference), incorrect output) examples, analyze the patterns in the incorrect outputs and provide feedback on how the prompt can be improved to correct the mistakes in incorrect outputs."
+        "Do not provide the feedback to add examples with the prompt."
+    )
+    input_model = ErrorAnalysisInput
+    output_model = ErrorAnalysisOutput

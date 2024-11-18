@@ -267,7 +267,8 @@ class AspectCriticWithReference(AspectCritic):
         default_factory=lambda: MultiTurnAspectCriticPrompt()
     )
     embedding_model: BaseRagasEmbeddings = embedding_factory()
-    dynamic_retrevial: bool = False
+    dynamic_retrieval: bool = False
+    search_type: str = "similarity"
     
     def __post_init__(self):
         self.single_turn_prompt.instruction = self.definition
@@ -295,11 +296,11 @@ class AspectCriticWithReference(AspectCritic):
             response=response,
             reference=reference,
         )
-        if self.dynamic_retrevial:
-            index_path = "/Users/shahules/ragas/alingment-exp/indices/selected_20_indices_input_resp_ref.npy"
-            pos_examples, neg_examples = await self.retrieve_few_shot_examples(prompt_input, self.embedding_model, index_path=index_path, top_k=3,search="similarity")
+        if self.dynamic_retrieval:
+            assert self.search_type in ["similarity", "random"], "search type should be either similarity or dissimilarity"
+            index_path = "/Users/shahules/ragas/alingment-exp/train_vectors.npy"
+            pos_examples = await self.retrieve_few_shot_examples(prompt_input, self.embedding_model, index_path=index_path, top_k=3, search=self.search_type)
             self.single_turn_prompt.examples = pos_examples
-            self.single_turn_prompt.negative_examples = neg_examples
             
         response = await self.single_turn_prompt.generate(
             data=prompt_input,
