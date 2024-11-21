@@ -1,16 +1,19 @@
 
-import numpy as np
-from datasets import Dataset
+import json
 import os
 import typing as t
-import json
+
+import numpy as np
+from datasets import Dataset
+from sklearn.metrics import f1_score
 
 from ragas import EvaluationDataset, evaluate
-from sklearn.metrics import f1_score
 from ragas.metrics._aspect_critic import AspectCriticWithReference
-from .mutation import reverse_engineer_instruction_from_correct_examples, get_feedback_for_prompt, generate_prompt_from_feedback, do_cross_over
-from .utils import score_prompts, stratified_sample_no_duplicates
 
+from .mutation import (do_cross_over, generate_prompt_from_feedback,
+                       get_feedback_for_prompt,
+                       reverse_engineer_instruction_from_correct_examples)
+from .utils import score_prompts, stratified_sample_no_duplicates
 
 INITIAL_PROMPT = "Given the user_input, reference and response. Is the response correct compared with the reference"
 INITIAL_PROMPT = "Evaluate the response based on its alignment with the reference text and determine if it is correct. Consider the accuracy of the information, the relevance of the details provided, and any factual inaccuracies. Ensure that specific dates or timeframes mentioned in the reference are present in the response, as their absence can lead to misalignment. Emphasize the importance of verifying that all critical details, such as dates, are included to ensure full alignment with the reference. Provide a reason for your evaluation and assign a verdict: 1 if the response is correct and aligns well with the reference, and 0 if there are significant inaccuracies, missing critical details like dates, or misalignments."

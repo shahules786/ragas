@@ -1,10 +1,11 @@
-from datasets import Dataset
 from collections import defaultdict
 from typing import Any
-from sklearn.metrics import f1_score
-import numpy as np
 
-from ragas import evaluate, EvaluationDataset
+import numpy as np
+from datasets import Dataset
+from sklearn.metrics import f1_score
+
+from ragas import EvaluationDataset, evaluate
 
 
 def stratified_sample_no_duplicates(dataset: Dataset, batch_size: int, target_column: str = 'target', seed=42) -> Dataset:

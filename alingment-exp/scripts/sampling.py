@@ -1,9 +1,11 @@
 
-from ragas.prompt import PydanticPrompt
-from pydantic import BaseModel
-from ragas.metrics._aspect_critic import AspectCriticInputWithReference, AspectCriticOutputWithReference
 import typing as t
 
+from pydantic import BaseModel
+
+from ragas.metrics._aspect_critic import (AspectCriticInputWithReference,
+                                          AspectCriticOutputWithReference)
+from ragas.prompt import PydanticPrompt
 
 ## Reverse Engineer prompts from examples
 

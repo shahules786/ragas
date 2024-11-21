@@ -3,10 +3,10 @@ from __future__ import annotations
 import inspect
 import logging
 import os
-from datasets import Dataset
 import typing as t
-import numpy as np
 
+import numpy as np
+from datasets import Dataset
 from openai import BaseModel
 
 from ragas.embeddings.base import BaseRagasEmbeddings
@@ -117,26 +117,33 @@ class PromptMixin:
             loaded_prompt = prompt.__class__.load(prompt_file_name)
             loaded_prompts[prompt_name] = loaded_prompt
         return loaded_prompts
-    
-    async def retrieve_few_shot_examples(self, prompt_input: BaseModel, embedding_model: BaseRagasEmbeddings, index_path: str, top_k: int = 5, search="similarity") -> t.Any:
-        
+
+    async def retrieve_few_shot_examples(
+        self,
+        prompt_input: BaseModel,
+        embedding_model: BaseRagasEmbeddings,
+        index_path: str,
+        top_k: int = 5,
+        search="similarity",
+    ) -> t.Any:
+
         metric_prompts = self.get_prompts()
-        
+
         prompt_name = None
         input_model, output_model = None, None
         for key, val in metric_prompts.items():
-            if val.input_model == type(prompt_input):
+            if val.input_model is type(prompt_input):
                 prompt_name = key
                 input_model = val.input_model
                 output_model = val.output_model
                 break
-            
+
         if prompt_name is None:
             raise ValueError(f"Prompt with input model {prompt_input} not found")
-        
+
         pos_examples = []
 
-        train_inputs = Dataset.from_json(index_path.replace("npy","json")).to_list()
+        train_inputs = Dataset.from_json(index_path.replace("npy", "json")).to_list()
         if search == "similarity":
             train_vectors = np.load(index_path)
             test_vector = await embedding_model.aembed_query(prompt_input.user_input)
@@ -145,15 +152,15 @@ class PromptMixin:
                 np.linalg.norm(train_vectors, axis=1) * np.linalg.norm(test_vector)
             )
             most_similar_indices = np.argsort(similarities)[::-1]
-            
+
             for idx in most_similar_indices:
                 if len(pos_examples) < top_k:
                     example = train_inputs[idx]
                     input_example = input_model(**example["input"])
                     output_example = output_model(**example["output"])
-                    if example["qdrant"] in ["TN", "TP"]:    
+                    if example["qdrant"] in ["TN", "TP"]:
                         pos_examples.append((input_example, output_example))
-            
+
         elif search == "random":
             np.random.seed(seed=42)
             examples = np.random.choice(train_inputs, top_k, replace=False)
@@ -164,6 +171,5 @@ class PromptMixin:
                     pos_examples.append((input_example, output_example))
         else:
             raise ValueError(f"Search method {search} not supported")
-            
-                                   
+
         return pos_examples

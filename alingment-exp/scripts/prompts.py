@@ -1,5 +1,6 @@
-from ragas.prompt import PydanticPrompt
 from pydantic import BaseModel
+
+from ragas.prompt import PydanticPrompt
 
 
 class CreateQuestion(BaseModel):
@@ -312,6 +313,48 @@ class RewritePrompt(PydanticPrompt[RewriteReference, RewrittenAnswer]):
         ),
     ]
     
+    
+    
+class ELI5Prompt(PydanticPrompt[RewriteReference, RewrittenAnswer]):
+    instruction: str = (
+        "Rewrite the following reference answer in an 'Explain Like I'm 5' (ELI5) style. "
+        "Use simple language, break down complex ideas, and make it easy to understand. "
+        "However, ensure all critical information, such as dates, names, and important concepts, is preserved in the rewritten answer.\n\n"
+    )
+    input_model = RewriteReference
+    output_model = RewrittenAnswer
+    examples = [
+        (
+            RewriteReference(
+                question="How do plants make their food?",
+                reference_answer=(
+                    "Plants make their food through a process called photosynthesis. "
+                    "They use sunlight, carbon dioxide from the air, and water from the soil to create sugar, which is their food, and oxygen as a by-product."
+                )
+            ),
+            RewrittenAnswer(
+                rewritten_answer=(
+                    "Plants make their food by using sunlight like a superpower. They take air, water, and sunlight and turn them into food for themselves and give us oxygen to breathe!"
+                )
+            )
+        ),
+        (
+            RewriteReference(
+                question="Who invented the light bulb?",
+                reference_answer=(
+                    "Thomas Edison is often credited with inventing the light bulb in 1879. "
+                    "Although other inventors worked on similar devices, Edison's version was the first practical and long-lasting bulb."
+                )
+            ),
+            RewrittenAnswer(
+                rewritten_answer=(
+                    "Thomas Edison made the first light bulb that worked well and lasted a long time in 1879. "
+                    "Other people tried making light bulbs before, but his was the one that actually worked!"
+                )
+            )
+        )
+    ]
+    
 
 class Response(BaseModel):
     response: str
@@ -361,3 +404,4 @@ class RewritePromptWithError(PydanticPrompt[Response, ErroredResponse]):
             )
         )
     ]
+    

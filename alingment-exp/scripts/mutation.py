@@ -1,7 +1,12 @@
 import numpy as np
 from tqdm import tqdm
 
-from .sampling import PromptFromCorrectExample, SingleExample,  FeedbackExample, FeedbackMutationInput, FeedbackMutationPrompt, FeedbackMutationPromptGeneration,FeedbackMutationPromptInput, ParentPrompts, CrossOverPrompt
+from .sampling import (CrossOverPrompt, FeedbackExample, FeedbackMutationInput,
+                       FeedbackMutationPrompt,
+                       FeedbackMutationPromptGeneration,
+                       FeedbackMutationPromptInput, ParentPrompts,
+                       PromptFromCorrectExample, SingleExample)
+
 
 def format_dict(dic):
     string = ""

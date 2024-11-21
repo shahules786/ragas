@@ -222,7 +222,7 @@ class AspectCriticOutputWithReference(BaseModel):
 class SingleTurnAspectCriticPromptWithReference(
     PydanticPrompt[AspectCriticInputWithReference, AspectCriticOutputWithReference]
 ):
-    instruction = "",
+    instruction = ("",)
     input_model = AspectCriticInputWithReference
     output_model = AspectCriticOutputWithReference
 
@@ -244,6 +244,7 @@ class AspectCriticWithReference(AspectCritic):
         The number of times self consistency checks is made. Final judgement is
         made using majority vote.
     """
+
     definition: str
     _required_columns: t.Dict[MetricType, t.Set[str]] = field(
         default_factory=lambda: {
@@ -269,13 +270,13 @@ class AspectCriticWithReference(AspectCritic):
     embedding_model: BaseRagasEmbeddings = embedding_factory()
     dynamic_retrieval: bool = False
     search_type: str = "similarity"
-    
+
     def __post_init__(self):
         self.single_turn_prompt.instruction = self.definition
         self.multi_turn_prompt.instruction = self.definition
 
     async def _ascore(self, row: t.Dict, callbacks: Callbacks) -> float:
-        
+
         if self.llm is None:
             raise ValueError("LLM is not set")
 
@@ -297,11 +298,20 @@ class AspectCriticWithReference(AspectCritic):
             reference=reference,
         )
         if self.dynamic_retrieval:
-            assert self.search_type in ["similarity", "random"], "search type should be either similarity or dissimilarity"
+            assert self.search_type in [
+                "similarity",
+                "random",
+            ], "search type should be either similarity or dissimilarity"
             index_path = "/Users/shahules/ragas/alingment-exp/train_vectors.npy"
-            pos_examples = await self.retrieve_few_shot_examples(prompt_input, self.embedding_model, index_path=index_path, top_k=3, search=self.search_type)
+            pos_examples = await self.retrieve_few_shot_examples(
+                prompt_input,
+                self.embedding_model,
+                index_path=index_path,
+                top_k=3,
+                search=self.search_type,
+            )
             self.single_turn_prompt.examples = pos_examples
-            
+
         response = await self.single_turn_prompt.generate(
             data=prompt_input,
             llm=self.llm,
@@ -309,18 +319,20 @@ class AspectCriticWithReference(AspectCritic):
         )
 
         return self._compute_score([response])
-    
-    async def _single_turn_ascore(self, sample: SingleTurnSample, callbacks: Callbacks) -> float:
+
+    async def _single_turn_ascore(
+        self, sample: SingleTurnSample, callbacks: Callbacks
+    ) -> float:
         row = sample.to_dict()
         return await self._ascore(row, callbacks)
 
     async def _multi_turn_ascore(
         self, sample: MultiTurnSample, callbacks: Callbacks
     ) -> float:
-        
+
         if self.llm is None:
             raise ValueError("LLM is not set")
-        
+
         if sample.reference is None:
             raise ValueError("Reference is not set")
 
