@@ -356,52 +356,119 @@ class ELI5Prompt(PydanticPrompt[RewriteReference, RewrittenAnswer]):
     ]
     
 
+
+
+# Define the Response and ErroredResponse models
 class Response(BaseModel):
+    user_input: str
+    reference: str
     response: str
 
 class ErroredResponse(BaseModel):
     errored_response: str
     error_description: str
 
+# Define the RewritePromptWithError class
 class RewritePromptWithError(PydanticPrompt[Response, ErroredResponse]):
     instruction: str = (
-        "Rewrite the provided response by introducing a single factual inaccuracy that directly affects the core content, such as a key date, "
-        "numerical detail, or specific event. Avoid introducing the error in metaphors, analogies, or peripheral comparisons. "
-        "The inaccuracy should be subtle but identifiable by comparing it with the original response without needing external knowledge. "
-        "Ensure all other aspects of the response, including wording and structure, remain unchanged."
+        "Rewrite the following ELI5 response by making one or two non-trivial factual inaccuracies to it."
+        "The inaccuracies should be detectable when comparing the errored response with the provided reference"
+        "Do not alter any other part of the response."
+        "Only change facts, never introduce entirely new information into the response."
     )
     input_model = Response
     output_model = ErroredResponse
     examples = [
         (
             Response(
+                user_input="What is the Theory of Glacial Cycles and how does it explain the occurrence of ice ages?",
+                reference=(
+                    "The Theory of Glacial Cycles, also known as the Milankovitch Cycles, explains the occurrence of ice ages "
+                    "through variations in Earth's orbit and axial tilt. These cycles include changes in eccentricity, axial tilt, "
+                    "and precession, which affect the distribution and intensity of sunlight received by Earth. Over tens of thousands "
+                    "of years, these variations lead to significant climate changes, including the advance and retreat of ice sheets. "
+                    "The theory suggests that these orbital changes trigger feedback mechanisms, such as changes in greenhouse gas "
+                    "concentrations and albedo, amplifying the climatic effects and leading to glacial and interglacial periods."
+                ),
                 response=(
-                    "The Space Race was a competitive period between the United States and the Soviet Union. It began with the Soviet Union's "
-                    "launch of Sputnik 1, the first artificial satellite, in 1957. This event motivated the U.S. to establish NASA in 1958, "
-                    "setting the stage for a series of milestones in space exploration, including the 1969 Apollo 11 Moon landing."
+                    "The Theory of Glacial Cycles, or Milankovitch Cycles, is like a big clock for Earth's ice ages. "
+                    "It says that the way Earth moves around the sun changes over a long time, like how it tilts and wobbles. "
+                    "These changes make the sunlight hit Earth differently, which can make it colder or warmer. "
+                    "Over thousands of years, this can make big ice sheets grow or melt. "
+                    "It's like a chain reaction where these changes also affect things like greenhouse gases and how shiny Earth is, "
+                    "making the ice ages come and go."
                 )
             ),
             ErroredResponse(
                 errored_response=(
-                    "The Space Race was a competitive period between the United States and the Soviet Union. It began with the Soviet Union's "
-                    "launch of Sputnik 1, the first artificial satellite, in 1958. This event motivated the U.S. to establish NASA in 1958, "
-                    "setting the stage for a series of milestones in space exploration, including the 1969 Apollo 11 Moon landing."
+                    "The Theory of Glacial Cycles, or Milankovitch Cycles, is like a big clock for Earth's ice ages. "
+                    "It says that the way Earth moves around the sun changes over a long time, like how it tilts and wobbles. "
+                    "These changes make the sunlight hit Earth differently, which can make it colder or warmer. "
+                    "Over millions of years, this can make big ice sheets grow or melt. "
+                    "It's like a chain reaction where these changes also affect things like greenhouse gases and ocean currents, "
+                    "making the ice ages come and go."
                 ),
-                error_description="The date for the launch of Sputnik 1 was changed from 1957 to 1958, introducing a minor factual inaccuracy."
+                error_description=(
+                    "Changed 'thousands' of years to 'millions' of years, significantly altering the timescale of glacial cycles. "
+                    "Replaced 'how shiny Earth is' with 'ocean currents', introducing an inaccurate feedback mechanism."
+                )
             )
         ),
         (
             Response(
+                user_input="How do black holes form and what are their main characteristics?",
+                reference=(
+                    "Black holes form from the remnants of massive stars that have undergone gravitational collapse after exhausting their nuclear fuel. "
+                    "When a star with a mass several times that of the Sun collapses under its own gravity, it can form a black hole. "
+                    "The main characteristics of black holes include the event horizon, which is the boundary beyond which nothing can escape, "
+                    "the singularity at the center where density is infinite, and strong gravitational fields that warp spacetime. "
+                    "Black holes can be detected by their interactions with surrounding matter and the emission of X-rays from accretion disks."
+                ),
                 response=(
-                    "The wheel transformed transportation by making it easier to move heavy loads. Before the wheel, people relied on sledges or dragged goods across the ground."
+                    "Black holes are incredibly dense objects formed when massive stars collapse under their own gravity after burning out their fuel. "
+                    "They have an event horizon, which is the point of no return, and a singularity at the center where all the mass is concentrated. "
+                    "Black holes exert such strong gravitational forces that not even light can escape once it crosses the event horizon. "
+                    "They can be detected by observing how they affect nearby stars and the X-rays emitted from the material swirling around them."
                 )
             ),
             ErroredResponse(
                 errored_response=(
-                    "The wheel transformed transportation by making it easier to move heavy loads. Before the wheel, people relied on carts or dragged goods across the ground."
+                    "Black holes are incredibly dense objects formed when small stars collapse under their own gravity after burning out their fuel. "
+                    "They have an event horizon, which is the point of no return, and a singularity at the center where all the mass is concentrated. "
+                    "Black holes exert such strong gravitational forces that not even light can escape once it crosses the event horizon. "
+                    "They can be detected by observing how they affect nearby stars and the X-rays emitted from the material swirling around them."
                 ),
-                error_description="The errored response incorrectly states that people used 'carts' before the invention of the wheel, which introduces a subtle factual inaccuracy."
+                error_description=(
+                    "Changed 'massive' stars to 'small' stars, incorrectly suggesting that black holes form from the collapse of small stars."
+                )
             )
-        )
+        ),
+        (
+            Response(
+                user_input="Explain the process of photosynthesis and its importance to life on Earth.",
+                reference=(
+                    "Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy into chemical energy, "
+                    "producing glucose and oxygen from carbon dioxide and water. This process occurs in the chloroplasts, primarily using the pigment chlorophyll to capture light. "
+                    "Photosynthesis is crucial for life on Earth as it provides the primary source of energy for nearly all living organisms and is responsible for the oxygen in the atmosphere."
+                ),
+                response=(
+                    "Photosynthesis is how green plants and some microorganisms use sunlight to make their own food. "
+                    "They take in carbon dioxide and water and, using sunlight, convert these into glucose and release oxygen. "
+                    "This process happens in the chloroplasts of plant cells, where chlorophyll captures the light energy. "
+                    "Photosynthesis is essential for life on Earth because it provides energy for plants and oxygen for other organisms to breathe."
+                )
+            ),
+            ErroredResponse(
+                errored_response=(
+                    "Photosynthesis is how green plants and some microorganisms use sunlight to make their own food. "
+                    "They take in nitrogen dioxide and water and, using sunlight, convert these into glucose and release oxygen. "
+                    "This process happens in the chloroplasts of plant cells, where chlorophyll captures the light energy. "
+                    "Photosynthesis is essential for life on Earth because it provides energy for plants and oxygen for other organisms to breathe."
+                ),
+                error_description=(
+                    "Changed 'carbon dioxide' to 'nitrogen dioxide', incorrectly altering a fundamental reactant in photosynthesis."
+                )
+            )
+        ),
     ]
     
