@@ -1,0 +1,31 @@
+_row_id,id,query,expected_output
+23cdeea1-a4cd-4ec1-882d-4c6ffc7bbb83,0,What is the capital of France?,Paris is the capital of France.
+9902bd10-3964-4aca-aa1f-6f80e6ea825c,1,Who wrote 'To Kill a Mockingbird'?,Harper Lee wrote 'To Kill a Mockingbird.'
+2105340a-2802-4167-9adf-d6e8c7fd7bb7,2,How many continents are there on Earth?,Earth has seven continents.
+fefc4827-de0c-4d54-8bff-56ef4bf6e226,3,What is the chemical symbol for gold?,The chemical symbol for gold is Au.
+6af37759-4fed-46a6-a704-cc059d508503,4,Who developed the theory of relativity?,Albert Einstein developed the theory of relativity.
+fba5c042-c3ff-4148-91d3-4af1dd07a496,5,What year did the first man land on the Moon?,The first Moon landing occurred in 1969.
+258ed452-788d-478a-99b3-db36e4711a3b,6,What is the largest mammal on Earth?,The blue whale is the largest mammal on Earth.
+99a241b5-3614-4707-8501-a5d6bdc838e6,7,Which planet is known as the Red Planet?,Mars is known as the Red Planet.
+9d6a6c6d-3e44-40e2-800c-8122312cd34f,8,What is the square root of 64?,The square root of 64 is 8.
+0e9f80f1-4d34-485b-9b4c-4304cb4dd540,9,Who painted the Mona Lisa?,Leonardo da Vinci painted the Mona Lisa.
+f8a162ab-9da7-429b-8b66-e38e6126c85b,10,What gas do plants absorb during photosynthesis?,Plants absorb carbon dioxide during photosynthesis.
+76b19734-4437-40ab-b948-c2788409c9ea,11,What is the longest river in the world?,The Nile is considered the longest river in the world.
+319cc333-9e4b-4be3-8ef3-7984c3280572,12,Which element has the atomic number 1?,Hydrogen has atomic number 1.
+b1f3e431-cb89-4c47-813c-94645f5a86d1,13,What language is primarily spoken in Brazil?,Portuguese is the primary language spoken in Brazil.
+00c12673-14bb-49b8-b510-ed61f03cefda,14,Who is the author of the Harry Potter series?,J.K. Rowling is the author of the Harry Potter series.
+bf438c6d-8391-4441-b711-42efc62d26f7,15,What is the freezing point of water in Celsius?,Water freezes at 0 degrees Celsius.
+8dab8fce-691d-47c6-b234-b49eec19228f,16,What is the largest ocean on Earth?,The Pacific Ocean is the largest ocean on Earth.
+572421b9-9b3f-41d7-9e5b-a1d32a52d971,17,Which instrument has 88 keys?,A standard piano has 88 keys.
+6d530754-fe93-466d-a191-012ab3e20db9,18,How many degrees are in a right angle?,A right angle measures 90 degrees.
+3df534f1-622b-425a-8f0e-2542342f062a,19,What currency is used in Japan?,The Japanese yen is the currency used in Japan.
+68a02f03-48d9-4d5c-ba07-ca295bf75462,20,Who discovered penicillin?,Alexander Fleming discovered penicillin.
+ad00b126-ca36-4402-b5f8-817df30ad428,21,What is the tallest mountain in the world above sea level?,Mount Everest is the tallest mountain above sea level.
+acb5695b-66d6-48ed-b9ba-35ef39e272f4,22,Which city hosted the 2024 Summer Olympics?,Paris hosted the 2024 Summer Olympics.
+e4ce0c13-4522-4388-a39a-266e58d3b404,23,What is the smallest prime number?,The smallest prime number is 2.
+69f5fef1-94ee-42c0-9e8b-834253ab582c,24,What organ pumps blood throughout the human body?,The heart pumps blood throughout the human body.
+3e6a56e4-922a-4fda-af33-08fc77515306,25,Who was the first President of the United States?,George Washington was the first President of the United States.
+23ba817d-a680-4a45-8125-bed5ba88eb5b,26,Which country is famous for the Great Barrier Reef?,Australia is famous for the Great Barrier Reef.
+22325a57-1c52-4ebd-9f1d-ad32bd135a88,27,What is the main gas found in the Earth's atmosphere?,Nitrogen is the main gas in Earth's atmosphere.
+bc1b286c-1cee-42df-9d8f-4102b67b1932,28,What device do you use to measure temperature?,A thermometer is used to measure temperature.
+1fff2a42-f8c0-4815-a172-3b7470462fdb,29,What is the process by which plants make their own food?,Photosynthesis is the process by which plants make their own food.
